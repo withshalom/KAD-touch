@@ -650,12 +650,12 @@ html, body {
       <div class="splash-title">Choose your working units</div>
       <div class="splash-body">All coordinates and dimensions will use this unit. You can change it anytime in the menu.</div>
       <div class="unit-choice-grid">
-        <button class="unit-choice-btn mm-c" ontouchend="splashSelectUnit('mm')">
+        <button class="unit-choice-btn mm-c" ontouchend="splashSelectUnit('mm')" onclick="splashSelectUnit('mm')">
           <span class="ucb-unit mm">mm</span>
           <span class="ucb-name">Millimeters</span>
           <span class="ucb-desc">ISO · Metric</span>
         </button>
-        <button class="unit-choice-btn in-c" ontouchend="splashSelectUnit('in')">
+        <button class="unit-choice-btn in-c" ontouchend="splashSelectUnit('in')" onclick="splashSelectUnit('in')">
           <span class="ucb-unit in">in</span>
           <span class="ucb-name">Inches</span>
           <span class="ucb-desc">Imperial · US</span>
@@ -665,7 +665,7 @@ html, body {
         <div class="splash-dot active" id="dot-0"></div>
         <div class="splash-dot" id="dot-1"></div>
         <div class="splash-dot" id="dot-2"></div>
-        <button class="splash-btn-skip" ontouchend="skipSplash()">Skip</button>
+        <button class="splash-btn-skip" ontouchend="skipSplash()" onclick="skipSplash()">Skip</button>
       </div>
     </div>
 
@@ -705,7 +705,7 @@ html, body {
         <div class="splash-dot" id="dot-0b"></div>
         <div class="splash-dot active" id="dot-1b"></div>
         <div class="splash-dot" id="dot-2b"></div>
-        <button class="splash-btn" ontouchend="splashNext()">Next →</button>
+        <button class="splash-btn" ontouchend="splashNext()" onclick="splashNext()">Next →</button>
       </div>
     </div>
 
@@ -721,7 +721,7 @@ html, body {
         <div class="splash-dot" id="dot-0c"></div>
         <div class="splash-dot" id="dot-1c"></div>
         <div class="splash-dot active" id="dot-2c"></div>
-        <button class="splash-btn" ontouchend="finishSplash()">Start Drawing</button>
+        <button class="splash-btn" ontouchend="finishSplash()" onclick="finishSplash()">Start Drawing</button>
       </div>
     </div>
 
@@ -889,38 +889,44 @@ function closeDrawer(){
 // ── SPLASH ───────────────────────────────────────────────
 let splashPage=0;
 let splashUnitChosen=false;
+let splashLock=false; // prevent double-fire from ontouchend+onclick on touch devices
 
-function splashSelectUnit(unit){
+function splashGuard(fn){ if(splashLock) return; splashLock=true; fn(); setTimeout(()=>splashLock=false,400); }
+
+function splashSelectUnit(unit){ splashGuard(()=>{
   applyUnit(unit);
   try{ localStorage.setItem(SPLASH_KEY, unit); }catch(e){}
   splashUnitChosen=true;
   splashPage=1;
   moveSplashTo(1);
-}
-function splashNext(){ splashPage=2; moveSplashTo(2); }
+}); }
+
+function splashNext(){ splashGuard(()=>{ splashPage=2; moveSplashTo(2); }); }
+
 function moveSplashTo(n){
   document.getElementById('splash-pages').style.transform=`translateX(${-n*33.333}%)`;
 }
-function skipSplash(){ finishSplash(); }
-function finishSplash(){
+function skipSplash(){ splashGuard(()=>finishSplash()); }
+function finishSplash(){ splashGuard(()=>{
   document.getElementById('splash').style.display='none';
   canvas.focus();
   if(!splashUnitChosen){
-    // Default mm if skipped
     try{ localStorage.setItem(SPLASH_KEY,'mm'); }catch(e){}
   }
-}
+}); }
 function initSplash(){
   document.getElementById('cc-year').textContent=new Date().getFullYear();
   let saved=null;
   try{ saved=localStorage.getItem(SPLASH_KEY); }catch(e){}
   if(saved==='mm'||saved==='in'){
+    // Returning user — apply unit silently and skip splash entirely
     applyUnit(saved);
-    // Skip straight to nav page (show once only for unit choice)
-    splashPage=1; moveSplashTo(1);
-    // Actually skip entirely after first time
     document.getElementById('splash').style.display='none';
+    return;
   }
+  // First visit — show splash from page 0 (unit choice)
+  splashPage=0;
+  moveSplashTo(0);
 }
 
 // ── TOUCH GESTURE ENGINE ─────────────────────────────────
