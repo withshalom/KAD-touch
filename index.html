@@ -461,8 +461,9 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg-void)
 .op-actions { display: flex; gap: 6px; }
 .op-actions .dlg-btn { flex: 1; padding: 6px 8px; font-size: 9px; }
 /* ── TOUCH ADDITIONS — layout unchanged from desktop ── */
+#app         { touch-action: none; } /* prevent browser pinch-zoom stealing events */
 #main-canvas { touch-action: none; }
-#canvas-wrap  { touch-action: none; }
+#canvas-wrap { touch-action: none; }
 
 /* Hamburger button — hidden on wide screens */
 #sidebar-toggle {
@@ -773,6 +774,7 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg-void)
   <div class="ctx-sep"></div>
   <div class="ctx-head">View</div>
   <button class="ctx-item" onclick="zoomExtents();closeCtxMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>Zoom Extents<span class="ctx-key">Z</span></button>
+  <button class="ctx-item" onclick="toggleGrid();closeCtxMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span id="ctx-grid-label">Toggle Grid</span><span class="ctx-key">G</span></button>
   <button class="ctx-item" onclick="initCamera();render();closeCtxMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>Reset View<span class="ctx-key">Home</span></button>
   <button class="ctx-item" onclick="toggleUnits();closeCtxMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span id="ctx-unit-label">Switch to inches</span><span class="ctx-key">U</span></button>
 </div>
@@ -1188,6 +1190,8 @@ function toggleGrid() {
   showGrid = !showGrid;
   document.getElementById('prop-grid-st').textContent = showGrid?'ON':'OFF';
   document.getElementById('prop-grid-st').className   = 'prop-val '+(showGrid?'green':'');
+  const lbl = document.getElementById('ctx-grid-label');
+  if(lbl) lbl.textContent = showGrid ? 'Hide Grid' : 'Show Grid';
   render();
 }
 function toggleSnap() {
@@ -2338,210 +2342,206 @@ function closeSidebar() {
 //  Long press 480ms    → context menu (right-click equivalent)
 //  Hold + second tap   → selection box (two-corner gesture)
 
-const T_LONG_MS  = 480;
-const T_MOVE_TOL = 8;    // px movement that cancels long-press
-const T_SNAP_PX  = 28;   // larger snap radius for fingertip
+// ── TOUCH EVENT SYSTEM ───────────────────────────────────
+// Design:
+//  - SELECT/ROTATE tool: handled natively (tap=pick, hold+2nd=selbox)
+//  - Drawing tools: forwarded to existing mouse handlers
+//  - 2 fingers: pinch-zoom + pan
+//  - Long press: context menu
+const T_LONG_MS  = 500;
+const T_MOVE_TOL = 10;
+const T_SNAP_PX  = 28;
 
 let tLongTimer = null;
 let tLongFired = false;
+let tMoved     = false;
 let tStartX = 0, tStartY = 0;
 
-// Pinch
-let tPinch = false;
-let tPinchDist = 0, tPinchZoom = 0;
-let tPinchPanX = 0, tPinchPanY = 0;
-let tPinchMidX = 0, tPinchMidY = 0;
+let tPinch=false, tPinchDist=0, tPinchZoom=0;
+let tPinchPanX=0, tPinchPanY=0, tPinchMidX=0, tPinchMidY=0;
 
-// Two-touch selection box
-let tSelBox = { phase:0, ax:0, ay:0, awx:0, awy:0 };
+// Selection box state — independent of mouse selBox
+const tSB = { phase:0, ax:0, ay:0, awx:0, awy:0 };
 
-function tPos(touch) {
-  const r = canvas.getBoundingClientRect();
-  return { x: touch.clientX - r.left, y: touch.clientY - r.top };
+function tPos(touch){
+  const r=canvas.getBoundingClientRect();
+  return {x:touch.clientX-r.left, y:touch.clientY-r.top};
 }
-
-// Synthesise a minimal mouse-event-like object
-function tMouse(clientX, clientY, button) {
-  return { clientX, clientY, button: button||0,
-           shiftKey:false, preventDefault:()=>{}, stopPropagation:()=>{} };
+function tMouse(cx,cy,btn){
+  return {clientX:cx,clientY:cy,button:btn||0,shiftKey:false,preventDefault:()=>{},stopPropagation:()=>{}};
 }
-
-// Touch-aware snap with larger radius
-function tSnap(wx, wy) {
+function tSnap(wx,wy){
   if(!snapEnabled) return null;
-  const pts = GeoMemory.allEndpoints();
+  const pts=GeoMemory.allEndpoints();
   for(const p of lineChain) pts.push(p);
-  let best=null, bestD=Infinity;
-  const test = worldToScreen(wx, wy);
+  let best=null,bestD=Infinity;
+  const test=worldToScreen(wx,wy);
   for(const p of pts){
-    const sp = worldToScreen(p.x, p.y);
-    const d  = Math.hypot(sp.x-test.x, sp.y-test.y);
-    if(d < T_SNAP_PX && d < bestD){ bestD=d; best=p; }
+    const sp=worldToScreen(p.x,p.y);
+    const d=Math.hypot(sp.x-test.x,sp.y-test.y);
+    if(d<T_SNAP_PX&&d<bestD){bestD=d;best=p;}
   }
   return best;
 }
+function isOnCanvas(touch){
+  const r=canvas.getBoundingClientRect();
+  return touch.clientX>=r.left&&touch.clientX<=r.right&&
+         touch.clientY>=r.top&&touch.clientY<=r.bottom;
+}
+function tUpdateWorld(touch){
+  const pos=tPos(touch);
+  const raw=screenToWorld(pos.x,pos.y);
+  const snap=tSnap(raw.x,raw.y);
+  mouseScreen=pos; mouseWorld=snap||raw;
+  snapActive=!!snap; snapPoint=snap;
+  const ring=document.getElementById('snap-ring');
+  if(snap){const sp=worldToScreen(snap.x,snap.y);ring.style.display='block';ring.style.left=sp.x+'px';ring.style.top=sp.y+'px';}
+  else{ring.style.display='none';}
+  document.getElementById('cx').textContent=fmtCoord(mouseWorld.x);
+  document.getElementById('cy').textContent=fmtCoord(mouseWorld.y);
+}
+function tCommitSelBox(){
+  const lx=Math.min(tSB.awx,mouseWorld.x),rx=Math.max(tSB.awx,mouseWorld.x);
+  const by=Math.min(tSB.awy,mouseWorld.y),ty=Math.max(tSB.awy,mouseWorld.y);
+  const ltr=mouseScreen.x>=tSB.ax;
+  selectedIds.clear();
+  for(const o of GeoMemory.objects){
+    if(ltr?selBoxWindow(o,lx,rx,by,ty):selBoxCrossing(o,lx,rx,by,ty)) selectedIds.add(o.id);
+  }
+  const n=selectedIds.size;
+  showToast(n>0?`${ltr?'Window':'Crossing'}: ${n} object${n>1?'s':''}`:'Nothing selected');
+  updateSelectionProps();
+  selBox.active=false; selBox.pending=false;
+  tSB.phase=0;
+  render();
+}
 
-canvas.addEventListener('touchstart', e => {
+document.addEventListener('touchstart', e=>{
+  const onCanvas=Array.from(e.touches).some(isOnCanvas);
+  if(!onCanvas&&!tPinch&&tSB.phase===0) return;
   e.preventDefault();
   closeCtxMenu();
-  tLongFired = false;
 
-  // ── TWO FINGERS ──────────────────────────────────────
-  if(e.touches.length === 2) {
-    clearTimeout(tLongTimer);
-
-    // If first finger was held — start selection box
-    if(tSelBox.phase === 1) {
-      tSelBox.phase = 2;
-      tPinch = false;
-      const r = canvas.getBoundingClientRect();
-      const t0 = { x:e.touches[0].clientX-r.left, y:e.touches[0].clientY-r.top };
-      const t1 = { x:e.touches[1].clientX-r.left, y:e.touches[1].clientY-r.top };
-      const d0 = Math.hypot(t0.x-tSelBox.ax, t0.y-tSelBox.ay);
-      const d1 = Math.hypot(t1.x-tSelBox.ax, t1.y-tSelBox.ay);
-      const corner = d0 > d1 ? t0 : t1;
-      const raw  = screenToWorld(corner.x, corner.y);
-      const snap = tSnap(raw.x, raw.y);
-      mouseScreen = corner;
-      mouseWorld  = snap || raw;
-      snapActive = !!snap; snapPoint = snap;
-      selBox.active  = true;
-      selBox.startSX = tSelBox.ax; selBox.startSY = tSelBox.ay;
-      selBox.startWX = tSelBox.awx; selBox.startWY = tSelBox.awy;
+  if(e.touches.length===2){
+    clearTimeout(tLongTimer); tLongFired=false;
+    // Phase 1 held → sel-box phase 2
+    if(tSB.phase===1){
+      tSB.phase=2; tPinch=false;
+      const r=canvas.getBoundingClientRect();
+      const s0={x:e.touches[0].clientX-r.left,y:e.touches[0].clientY-r.top};
+      const s1={x:e.touches[1].clientX-r.left,y:e.touches[1].clientY-r.top};
+      const corner=Math.hypot(s0.x-tSB.ax,s0.y-tSB.ay)>Math.hypot(s1.x-tSB.ax,s1.y-tSB.ay)?s0:s1;
+      const raw=screenToWorld(corner.x,corner.y);
+      const snap=tSnap(raw.x,raw.y);
+      mouseScreen=corner; mouseWorld=snap||raw; snapActive=!!snap; snapPoint=snap;
+      selBox.active=true; selBox.startSX=tSB.ax; selBox.startSY=tSB.ay;
+      selBox.startWX=tSB.awx; selBox.startWY=tSB.awy;
       render(); return;
     }
-
-    // Normal pinch-zoom + pan
-    tSelBox.phase = 0;
-    selBox.active = false; selBox.pending = false;
-    tPinch = true;
-    tPinchDist = Math.hypot(e.touches[1].clientX-e.touches[0].clientX, e.touches[1].clientY-e.touches[0].clientY);
-    tPinchZoom = cam.zoom;
-    tPinchPanX = cam.panX; tPinchPanY = cam.panY;
-    tPinchMidX = (e.touches[0].clientX+e.touches[1].clientX)/2;
-    tPinchMidY = (e.touches[0].clientY+e.touches[1].clientY)/2;
+    // Normal pinch
+    tSB.phase=0; selBox.active=false; tPinch=true;
+    const t0=e.touches[0],t1=e.touches[1];
+    tPinchDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    tPinchZoom=cam.zoom; tPinchPanX=cam.panX; tPinchPanY=cam.panY;
+    tPinchMidX=(t0.clientX+t1.clientX)/2; tPinchMidY=(t0.clientY+t1.clientY)/2;
     return;
   }
 
-  // ── ONE FINGER ───────────────────────────────────────
-  tPinch = false;
-  const t = e.touches[0];
-  tStartX = t.clientX; tStartY = t.clientY;
+  // One finger
+  tPinch=false; tLongFired=false; tMoved=false;
+  const t=e.touches[0];
+  tStartX=t.clientX; tStartY=t.clientY;
+  tUpdateWorld(t);
 
-  // Long-press → context menu
-  tLongTimer = setTimeout(() => {
-    tLongFired = true;
-    tSelBox.phase = 0;
+  tLongTimer=setTimeout(()=>{
+    if(tMoved) return;
+    tLongFired=true; tSB.phase=0; selBox.active=false;
     if(navigator.vibrate) navigator.vibrate(40);
-    openCtxMenu(t.clientX, t.clientY);
-  }, T_LONG_MS);
+    openCtxMenu(t.clientX,t.clientY);
+  },T_LONG_MS);
 
-  // Prime selection-box phase 1
-  if(activeTool==='select' || (activeTool==='rotate' && selectedIds.size===0)) {
-    const pos = tPos(t);
-    const raw = screenToWorld(pos.x, pos.y);
-    const snap = tSnap(raw.x, raw.y);
-    tSelBox.phase = 1;
-    tSelBox.ax = pos.x; tSelBox.ay = pos.y;
-    tSelBox.awx = snap ? snap.x : raw.x;
-    tSelBox.awy = snap ? snap.y : raw.y;
+  if(activeTool==='select'||(activeTool==='rotate'&&selectedIds.size===0)){
+    const pos=tPos(t); const raw=screenToWorld(pos.x,pos.y); const snap=tSnap(raw.x,raw.y);
+    tSB.phase=1; tSB.ax=pos.x; tSB.ay=pos.y;
+    tSB.awx=snap?snap.x:raw.x; tSB.awy=snap?snap.y:raw.y;
+    return; // handle entirely in touchend
   }
+  onMouseDown(tMouse(t.clientX,t.clientY,0));
+},{passive:false});
 
-  // Forward as mousedown
-  onMouseDown(tMouse(t.clientX, t.clientY, 0));
-
-}, {passive:false});
-
-canvas.addEventListener('touchmove', e => {
+document.addEventListener('touchmove', e=>{
+  const onCanvas=Array.from(e.touches).some(isOnCanvas);
+  if(!onCanvas&&!tPinch&&tSB.phase===0) return;
   e.preventDefault();
 
-  // ── PINCH MOVE ───────────────────────────────────────
-  if(e.touches.length === 2 && tPinch) {
-    const t0 = e.touches[0], t1 = e.touches[1];
-    const dist = Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY);
-    const mx   = (t0.clientX+t1.clientX)/2;
-    const my   = (t0.clientY+t1.clientY)/2;
-    const nz   = Math.max(cam.minZoom, Math.min(cam.maxZoom, tPinchZoom*(dist/tPinchDist)));
-    const pdx  = mx - tPinchMidX, pdy = my - tPinchMidY;
-    cam.zoom = nz;
-    cam.panX = tPinchMidX - (tPinchMidX-tPinchPanX)*(nz/tPinchZoom) + pdx;
-    cam.panY = tPinchMidY - (tPinchMidY-tPinchPanY)*(nz/tPinchZoom) + pdy;
-    document.getElementById('prop-zoom').textContent = cam.zoom.toFixed(2)+'×';
+  if(e.touches.length===2&&tPinch){
+    const t0=e.touches[0],t1=e.touches[1];
+    const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    const mx=(t0.clientX+t1.clientX)/2, my=(t0.clientY+t1.clientY)/2;
+    const nz=Math.max(cam.minZoom,Math.min(cam.maxZoom,tPinchZoom*(dist/tPinchDist)));
+    cam.zoom=nz;
+    cam.panX=tPinchMidX-(tPinchMidX-tPinchPanX)*(nz/tPinchZoom)+(mx-tPinchMidX);
+    cam.panY=tPinchMidY-(tPinchMidY-tPinchPanY)*(nz/tPinchZoom)+(my-tPinchMidY);
+    document.getElementById('prop-zoom').textContent=cam.zoom.toFixed(2)+'x';
     updateGridLabel(); render(); return;
   }
 
-  // ── SEL-BOX CORNER DRAG ──────────────────────────────
-  if(e.touches.length === 2 && tSelBox.phase === 2) {
-    const r = canvas.getBoundingClientRect();
-    const t0 = { x:e.touches[0].clientX-r.left, y:e.touches[0].clientY-r.top };
-    const t1 = { x:e.touches[1].clientX-r.left, y:e.touches[1].clientY-r.top };
-    const d0 = Math.hypot(t0.x-tSelBox.ax, t0.y-tSelBox.ay);
-    const d1 = Math.hypot(t1.x-tSelBox.ax, t1.y-tSelBox.ay);
-    const corner = d0 > d1 ? t0 : t1;
-    const raw  = screenToWorld(corner.x, corner.y);
-    const snap = tSnap(raw.x, raw.y);
-    mouseScreen = corner;
-    mouseWorld  = snap || raw;
-    snapActive = !!snap; snapPoint = snap;
+  if(e.touches.length===2&&tSB.phase===2){
+    const r=canvas.getBoundingClientRect();
+    const s0={x:e.touches[0].clientX-r.left,y:e.touches[0].clientY-r.top};
+    const s1={x:e.touches[1].clientX-r.left,y:e.touches[1].clientY-r.top};
+    const corner=Math.hypot(s0.x-tSB.ax,s0.y-tSB.ay)>Math.hypot(s1.x-tSB.ax,s1.y-tSB.ay)?s0:s1;
+    const raw=screenToWorld(corner.x,corner.y); const snap=tSnap(raw.x,raw.y);
+    mouseScreen=corner; mouseWorld=snap||raw; snapActive=!!snap; snapPoint=snap;
     render(); return;
   }
 
-  // ── SINGLE FINGER MOVE ───────────────────────────────
-  if(e.touches.length === 1) {
-    const t = e.touches[0];
-    const moved = Math.hypot(t.clientX-tStartX, t.clientY-tStartY);
-    if(moved > T_MOVE_TOL) {
-      clearTimeout(tLongTimer);
-      if(tSelBox.phase === 1) tSelBox.phase = 0;
+  if(e.touches.length===1){
+    const t=e.touches[0];
+    if(Math.hypot(t.clientX-tStartX,t.clientY-tStartY)>T_MOVE_TOL){
+      tMoved=true; clearTimeout(tLongTimer);
+      if(tSB.phase===1) tSB.phase=0;
     }
-    onMouseMove(tMouse(t.clientX, t.clientY));
+    tUpdateWorld(t);
+    if(activeTool!=='select'&&activeTool!=='rotate') onMouseMove(tMouse(t.clientX,t.clientY));
+    else render();
   }
+},{passive:false});
 
-}, {passive:false});
-
-canvas.addEventListener('touchend', e => {
+document.addEventListener('touchend', e=>{
+  const onCanvas=Array.from(e.changedTouches).some(isOnCanvas);
+  if(!onCanvas&&!tPinch&&tSB.phase===0) return;
   e.preventDefault();
   clearTimeout(tLongTimer);
-  if(tLongFired) { tLongFired=false; return; }
+  if(tLongFired){tLongFired=false;return;}
+  if(tPinch&&e.touches.length<2){tPinch=false;return;}
 
-  // Pinch ended
-  if(tPinch && e.touches.length < 2) { tPinch=false; return; }
+  // Sel-box commit
+  if(tSB.phase===2&&e.touches.length<=1){tCommitSelBox();return;}
 
-  // ── SEL-BOX COMMIT ───────────────────────────────────
-  if(tSelBox.phase === 2 && e.touches.length <= 1) {
-    tSelBox.phase = 0;
-    selBox.active = false;
-    const wx0=selBox.startWX, wy0=selBox.startWY;
-    const wx1=mouseWorld.x,   wy1=mouseWorld.y;
-    const lx=Math.min(wx0,wx1), rx=Math.max(wx0,wx1);
-    const by=Math.min(wy0,wy1), ty=Math.max(wy0,wy1);
-    const ltr = mouseScreen.x >= selBox.startSX;
-    selectedIds.clear();
-    for(const o of GeoMemory.objects){
-      if(ltr ? selBoxWindow(o,lx,rx,by,ty) : selBoxCrossing(o,lx,rx,by,ty))
-        selectedIds.add(o.id);
-    }
-    const n=selectedIds.size;
-    if(n>0) showToast(`${ltr?'Window':'Crossing'}: ${n} object${n>1?'s':''}`);
+  // Select-tool tap (anchor held, no 2nd finger came)
+  if(tSB.phase===1&&e.touches.length===0){
+    tSB.phase=0; selBox.active=false;
+    const ct=e.changedTouches[0]; const pos=tPos(ct);
+    const hit=pickObject(pos.x,pos.y);
+    if(hit){selectedIds.clear();selectedIds.add(hit.id);}
+    else selectedIds.clear();
     updateSelectionProps(); render(); return;
   }
 
-  tSelBox.phase = 0;
-
-  // Forward as mouseup
-  if(e.changedTouches.length > 0) {
-    const t = e.changedTouches[0];
-    onMouseUp(tMouse(t.clientX, t.clientY, 0));
+  tSB.phase=0;
+  if(e.changedTouches.length>0){
+    const ct=e.changedTouches[0];
+    onMouseUp(tMouse(ct.clientX,ct.clientY,0));
   }
+},{passive:false});
 
-}, {passive:false});
-
-canvas.addEventListener('touchcancel', () => {
+document.addEventListener('touchcancel',()=>{
   clearTimeout(tLongTimer);
-  tLongFired=false; tPinch=false; tSelBox.phase=0;
-  selBox.active=false; selBox.pending=false;
-  if(isPanning){ isPanning=false; updateCursor(); }
-}, {passive:false});
+  tLongFired=false;tPinch=false;tMoved=false;tSB.phase=0;
+  selBox.active=false;selBox.pending=false;
+  if(isPanning){isPanning=false;updateCursor();}
+},{passive:false});
 
 // ── KEYBOARD ────────────────────────────────────────────
 window.addEventListener('keydown', onKeyDown);
@@ -2688,7 +2688,7 @@ function updateGridLabel() {
 
 // ── RENDER ──────────────────────────────────────────────
 const C={
-  bg:'#080a0e', grid:'#141c28', gridMaj:'#1c2535', axis:'#1e3348',
+  bg:'#080a0e', grid:'#1a2638', gridMaj:'#243450', axis:'#2a4668',
   entity:'#00d4ff', entitySel:'#ffaa00', point:'#ffaa00',
   rubberLine:'#00d4ff', startPt:'#00ff9d',
 };
