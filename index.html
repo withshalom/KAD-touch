@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#080a0e">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<!-- .KAD TOUCH v0.3.1 -->
+<title>.KAD TOUCH</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg-void:       #080a0e;
+  --bg-panel:      #0d1117;
+  --bg-panel2:     #111620;
+  --bg-hover:      #1a2030;
+  --border:        #1e2a3a;
+  --border-bright: #2a3d55;
+  --accent:        #00d4ff;
+  --accent-dim:    #0088aa;
+  --accent-glow:   rgba(0,212,255,0.15);
+  --green:         #00ff9d;
+  --green-dim:     #00aa66;
+  --amber:         #ffaa00;
+  --red:           #ff4455;
+  --text-primary:  #d0dde8;
+  --text-secondary:#6a8099;
+  --text-dim:      #3a5070;
+  --font-mono:     'JetBrains Mono', monospace;
+  --font-ui:       'Space Grotesk', sans-serif;
+  --toolbar-h:     64px;  /* finger-sized */
+  --safe-bottom:   env(safe-area-inset-bottom, 0px);
+  --safe-top:      env(safe-area-inset-top, 0px);
+}
+
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html, body {
+  width:100%; height:100%; overflow:hidden; touch-action:none;
+  background:var(--bg-void); color:var(--text-primary);
+  font-family:var(--font-ui); font-size:14px;
+  -webkit-user-select:none; user-select:none;
+}
+
+/* ── FULL-SCREEN CANVAS ── */
+#canvas-wrap {
+  position:fixed; inset:0;
+  padding-top:var(--safe-top);
+  padding-bottom:calc(var(--toolbar-h) + var(--safe-bottom));
+}
+#main-canvas { display:block; width:100%; height:100%; touch-action:none; }
+.snap-ring {
+  position:absolute; pointer-events:none;
+  width:20px; height:20px;
+  border:2px solid var(--accent); border-radius:50%;
+  box-shadow:0 0 10px var(--accent);
+  transform:translate(-50%,-50%); display:none;
+}
+
+/* ── COORD OVERLAY ── */
+#coord-overlay {
+  position:absolute; top:16px; right:12px;
+  background:rgba(8,10,14,0.85); border:1px solid var(--border);
+  border-radius:6px; padding:6px 12px;
+  font-family:var(--font-mono); font-size:12px;
+  color:var(--text-secondary); pointer-events:none;
+  display:flex; gap:14px; backdrop-filter:blur(4px);
+}
+#coord-overlay span { color:var(--accent); }
+.coord-label { color:var(--text-dim); }
+
+/* ── HINT BAR ── */
+#hint-bar {
+  position:absolute; top:16px; left:50%; transform:translateX(-50%);
+  background:rgba(8,10,14,0.88); border:1px solid var(--border-bright);
+  border-radius:6px; padding:6px 14px;
+  font-size:11px; font-family:var(--font-mono);
+  color:var(--text-secondary); pointer-events:none;
+  white-space:nowrap; max-width:80vw;
+  overflow:hidden; text-overflow:ellipsis;
+}
+#hint-bar span { color:var(--accent); }
+
+/* ── BOTTOM TOOLBAR ── */
+#toolbar {
+  position:fixed; bottom:0; left:0; right:0;
+  height:calc(var(--toolbar-h) + var(--safe-bottom));
+  background:var(--bg-panel);
+  border-top:1px solid var(--border);
+  display:flex; align-items:flex-start;
+  padding-top:6px;
+  padding-bottom:var(--safe-bottom);
+  z-index:50;
+  gap:0;
+}
+.tb-tool {
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:3px; padding:6px 2px;
+  background:none; border:none;
+  color:var(--text-secondary);
+  font-family:var(--font-mono); font-size:8px;
+  letter-spacing:0.06em; text-transform:uppercase;
+  cursor:pointer; position:relative; overflow:hidden;
+  transition:color 0.15s;
+  -webkit-tap-highlight-color:transparent;
+  min-height:52px;
+}
+.tb-tool svg { width:22px; height:22px; transition:stroke 0.15s; }
+.tb-tool.active { color:var(--accent); }
+.tb-tool.active svg { stroke:var(--accent); }
+.tb-tool.active::after {
+  content:''; position:absolute; bottom:0; left:20%; right:20%;
+  height:2px; background:var(--accent);
+  border-radius:2px 2px 0 0;
+  box-shadow:0 0 8px var(--accent);
+}
+.tb-tool:active { background:var(--bg-hover); }
+.tb-sep-v { width:1px; background:var(--border); align-self:stretch; margin:6px 0; flex-shrink:0; }
+
+/* ── SIDEBAR DRAWER ── */
+#sidebar-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.6);
+  backdrop-filter:blur(2px); z-index:100;
+  opacity:0; pointer-events:none; transition:opacity 0.25s;
+}
+#sidebar-overlay.open { opacity:1; pointer-events:auto; }
+#sidebar-drawer {
+  position:fixed; top:0; left:0; bottom:0;
+  width:min(320px, 85vw);
+  background:var(--bg-panel);
+  border-right:1px solid var(--border-bright);
+  box-shadow:4px 0 32px rgba(0,0,0,0.6);
+  z-index:101;
+  transform:translateX(-100%);
+  transition:transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  display:flex; flex-direction:column;
+  padding-top:var(--safe-top);
+  overflow-y:auto;
+}
+#sidebar-drawer.open { transform:translateX(0); }
+.drawer-head {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 18px 12px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.drawer-brand {
+  display:flex; align-items:center; gap:8px;
+  font-family:var(--font-mono); font-weight:700;
+  font-size:16px; color:var(--accent); letter-spacing:0.04em;
+}
+.drawer-brand-dot {
+  width:8px; height:8px; background:var(--accent);
+  border-radius:50%; box-shadow:0 0 8px var(--accent);
+}
+.drawer-brand-sub { font-size:9px; color:var(--text-dim); letter-spacing:0.12em; font-weight:400; display:block; }
+.drawer-close {
+  background:none; border:1px solid var(--border); border-radius:6px;
+  color:var(--text-secondary); font-size:18px; padding:6px 10px;
+  cursor:pointer; line-height:1;
+}
+.drawer-section { padding:10px 14px 6px; font-family:var(--font-mono); font-size:9px; color:var(--text-dim); letter-spacing:0.14em; text-transform:uppercase; }
+.drawer-item {
+  display:flex; align-items:center; gap:12px;
+  padding:14px 18px; font-family:var(--font-mono); font-size:12px;
+  color:var(--text-secondary); cursor:pointer;
+  border-bottom:1px solid var(--border);
+  transition:background 0.1s, color 0.1s;
+}
+.drawer-item:active { background:var(--bg-hover); color:var(--text-primary); }
+.drawer-item svg { width:18px; height:18px; flex-shrink:0; opacity:0.7; }
+.drawer-item.accent { color:var(--accent); }
+.drawer-item.green  { color:var(--green); }
+.drawer-unit-row {
+  display:flex; align-items:center; gap:10px;
+  padding:12px 18px; border-bottom:1px solid var(--border);
+}
+.drawer-unit-row label { font-family:var(--font-mono); font-size:9px; color:var(--text-dim); letter-spacing:0.1em; text-transform:uppercase; flex:1; }
+#drawer-unit-toggle {
+  font-family:var(--font-mono); font-size:11px;
+  background:var(--bg-panel2); border:1px solid var(--border-bright);
+  border-radius:4px; color:var(--text-secondary);
+  cursor:pointer; padding:0; display:flex; align-items:center; overflow:hidden;
+}
+.unit-seg { padding:6px 12px; transition:background 0.15s, color 0.15s; line-height:1; }
+.unit-seg.active { background:var(--accent); color:var(--bg-void); font-weight:700; }
+.unit-div { width:1px; background:var(--border-bright); align-self:stretch; }
+
+/* Swipe hint */
+#swipe-hint {
+  position:fixed; left:0; top:50%; transform:translateY(-50%);
+  width:22px; height:60px;
+  background:rgba(0,212,255,0.12); border-right:1px solid var(--accent);
+  border-radius:0 6px 6px 0;
+  display:flex; align-items:center; justify-content:center;
+  z-index:40; pointer-events:none; transition:opacity 0.3s;
+}
+#swipe-hint svg { width:12px; height:12px; stroke:var(--accent); opacity:0.6; }
+
+/* ── TOAST ── */
+#toast {
+  position:fixed; bottom:calc(var(--toolbar-h) + var(--safe-bottom) + 12px);
+  left:50%; transform:translateX(-50%) translateY(10px);
+  background:var(--bg-panel2); border:1px solid var(--border-bright);
+  border-radius:6px; padding:8px 16px;
+  font-size:12px; font-family:var(--font-mono); color:var(--text-primary);
+  pointer-events:none; opacity:0; transition:opacity 0.18s, transform 0.18s;
+  z-index:200; white-space:nowrap; max-width:90vw;
+  overflow:hidden; text-overflow:ellipsis;
+}
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ── CONTEXT MENU ── */
+#ctx-menu {
+  position:fixed; display:none; flex-direction:column;
+  background:var(--bg-panel); border:1px solid var(--border-bright);
+  border-radius:10px; min-width:220px;
+  box-shadow:0 12px 48px rgba(0,0,0,0.8);
+  z-index:300; overflow:hidden; padding:6px 0;
+}
+#ctx-menu.open { display:flex; }
+.ctx-head { padding:6px 14px 4px; font-family:var(--font-mono); font-size:8px; color:var(--text-dim); letter-spacing:0.14em; text-transform:uppercase; }
+.ctx-item {
+  display:flex; align-items:center; gap:12px;
+  padding:13px 16px; font-family:var(--font-mono); font-size:12px;
+  color:var(--text-secondary); cursor:pointer;
+  transition:background 0.1s; border:none; background:none;
+  width:100%; text-align:left;
+}
+.ctx-item:active { background:var(--bg-hover); color:var(--text-primary); }
+.ctx-item svg { width:16px; height:16px; flex-shrink:0; opacity:0.7; }
+.ctx-item.hi { color:var(--accent); }
+.ctx-sep { height:1px; background:var(--border); margin:4px 0; }
+
+/* ── DIALOGS (shared) ── */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(4,6,10,0.88);
+  backdrop-filter:blur(6px); z-index:400;
+  display:none; align-items:center; justify-content:center;
+  padding:20px;
+}
+.modal-overlay.open { display:flex; }
+.modal-box {
+  background:var(--bg-panel); border:1px solid var(--border-bright);
+  border-radius:12px; box-shadow:0 24px 80px rgba(0,0,0,0.85);
+  width:100%; max-width:400px; overflow:hidden;
+  font-family:var(--font-mono);
+}
+.modal-head {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 18px; background:var(--bg-panel2);
+  border-bottom:1px solid var(--border);
+}
+.modal-title { font-size:11px; font-weight:500; color:var(--accent); letter-spacing:0.08em; text-transform:uppercase; }
+.modal-close { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:20px; padding:2px 6px; }
+.modal-body { padding:18px; }
+.modal-label { font-size:9px; color:var(--text-dim); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px; }
+.modal-input-row { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+.modal-input {
+  flex:1; background:var(--bg-panel2); border:1px solid var(--border-bright);
+  border-radius:6px; color:var(--accent); font-family:var(--font-mono);
+  font-size:18px; padding:12px 10px; outline:none; text-align:right;
+  min-width:0;
+}
+.modal-input:focus { border-color:var(--accent); }
+.modal-unit { font-size:14px; color:var(--text-dim); flex-shrink:0; }
+.modal-hint { font-size:10px; color:var(--text-dim); margin-bottom:14px; line-height:1.5; }
+.modal-actions { display:flex; gap:10px; }
+.modal-btn {
+  flex:1; font-family:var(--font-mono); font-size:12px; letter-spacing:0.06em;
+  padding:14px 10px; border-radius:8px; cursor:pointer;
+  transition:all 0.12s; border:1px solid var(--border); text-transform:uppercase;
+}
+.modal-btn.cancel { background:var(--bg-panel2); color:var(--text-secondary); }
+.modal-btn.cancel:active { background:var(--bg-hover); }
+.modal-btn.commit { background:var(--accent); border-color:var(--accent); color:var(--bg-void); font-weight:700; }
+.modal-btn.commit:active { background:#33ddff; }
+.unit-choice-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px; }
+.unit-choice-btn {
+  background:var(--bg-panel2); border:1px solid var(--border);
+  border-radius:10px; padding:20px 12px; cursor:pointer;
+  text-align:center; transition:all 0.14s;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+}
+.unit-choice-btn:active { transform:scale(0.97); }
+.unit-choice-btn.mm-c:active, .unit-choice-btn.mm-c:focus { border-color:var(--accent); background:var(--accent-glow); }
+.unit-choice-btn.in-c:active, .unit-choice-btn.in-c:focus { border-color:var(--amber); background:rgba(255,170,0,0.1); }
+.ucb-unit { font-size:32px; font-weight:700; display:block; }
+.ucb-unit.mm { color:var(--accent); }
+.ucb-unit.in { color:var(--amber); }
+.ucb-name { font-size:9px; color:var(--text-dim); letter-spacing:0.1em; text-transform:uppercase; }
+.ucb-desc { font-size:10px; color:var(--text-secondary); }
+
+/* ── SPLASH INTRO PAGES ── */
+#splash { position:fixed; inset:0; z-index:900; display:flex; flex-direction:column; background:var(--bg-void); }
+#splash-pages { display:flex; width:300%; transition:transform 0.35s cubic-bezier(0.4,0,0.2,1); }
+.splash-page { width:33.333%; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 28px; min-height:100vh; text-align:center; }
+.splash-logo { font-family:var(--font-mono); font-size:48px; font-weight:700; color:var(--accent); letter-spacing:0.04em; margin-bottom:6px; display:flex; align-items:center; gap:12px; }
+.splash-logo-dot { width:14px; height:14px; background:var(--accent); border-radius:50%; box-shadow:0 0 16px var(--accent); }
+.splash-sub { font-size:10px; color:var(--text-dim); letter-spacing:0.18em; text-transform:uppercase; margin-bottom:40px; }
+.splash-title { font-size:22px; font-weight:600; color:var(--text-primary); margin-bottom:14px; line-height:1.3; }
+.splash-body { font-size:14px; color:var(--text-secondary); line-height:1.7; margin-bottom:36px; }
+.splash-body b { color:var(--text-primary); }
+.splash-body span { color:var(--accent); }
+.splash-gesture {
+  width:100px; height:100px; border:2px solid var(--border-bright);
+  border-radius:20px; display:flex; align-items:center; justify-content:center;
+  margin:0 auto 24px; background:var(--bg-panel);
+}
+.splash-gesture svg { width:48px; height:48px; }
+.splash-nav { display:flex; align-items:center; gap:16px; justify-content:center; margin-top:auto; padding-top:20px; }
+.splash-dot { width:8px; height:8px; border-radius:50%; background:var(--border-bright); transition:background 0.2s; }
+.splash-dot.active { background:var(--accent); }
+.splash-btn {
+  background:var(--accent); border:none; border-radius:10px;
+  color:var(--bg-void); font-family:var(--font-mono); font-size:13px; font-weight:700;
+  padding:14px 32px; cursor:pointer; letter-spacing:0.06em;
+}
+.splash-btn-skip {
+  background:none; border:1px solid var(--border); border-radius:10px;
+  color:var(--text-dim); font-family:var(--font-mono); font-size:12px;
+  padding:12px 20px; cursor:pointer;
+}
+.splash-icon-row { display:flex; gap:20px; justify-content:center; margin-bottom:28px; }
+.splash-icon-item { display:flex; flex-direction:column; align-items:center; gap:6px; }
+.splash-icon-item span { font-size:9px; color:var(--text-dim); font-family:var(--font-mono); letter-spacing:0.08em; text-transform:uppercase; }
+
+/* ── ROTATE BAR (touch-sized) ── */
+#rotate-bar {
+  position:fixed; bottom:calc(var(--toolbar-h) + var(--safe-bottom) + 10px);
+  left:50%; transform:translateX(-50%);
+  background:var(--bg-panel); border:1px solid var(--border-bright);
+  border-radius:10px; padding:8px 12px;
+  display:none; align-items:center; gap:8px;
+  box-shadow:0 4px 20px rgba(0,0,0,0.5);
+  z-index:60; font-family:var(--font-mono);
+}
+#rotate-bar.visible { display:flex; }
+.r-btn {
+  background:var(--bg-panel2); border:1px solid var(--border); border-radius:6px;
+  color:var(--text-secondary); font-family:var(--font-mono); font-size:11px;
+  padding:10px 12px; cursor:pointer; white-space:nowrap;
+}
+.r-btn:active { background:var(--bg-hover); color:var(--text-primary); }
+.r-btn.hi { color:var(--accent); border-color:var(--accent-dim); }
+#rotate-angle-input {
+  background:var(--bg-panel2); border:1px solid var(--border-bright); border-radius:6px;
+  color:var(--accent); font-family:var(--font-mono); font-size:14px;
+  padding:8px 10px; width:72px; outline:none; text-align:right;
+}
+
+/* ── RECT/POLY BARS ── */
+#rect-preview { position:absolute; pointer-events:none; border:1px dashed var(--accent); background:rgba(0,212,255,0.04); display:none; }
+
+/* ── DXF IMPORT (reuses modal classes) ── */
+.fi-row { display:flex; justify-content:space-between; font-size:10px; color:var(--text-dim); margin-bottom:3px; }
+.fi-row span { color:var(--text-secondary); }
+.fi-row span.ok { color:var(--green); }
+.fi-row span.warn { color:var(--amber); }
+.dxf-unit-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px; }
+.dxf-unit-btn { background:var(--bg-panel2); border:1px solid var(--border); border-radius:6px; padding:10px 6px; font-family:var(--font-mono); font-size:10px; color:var(--text-secondary); cursor:pointer; text-align:center; transition:all 0.12s; }
+.dxf-unit-btn:active { background:var(--bg-hover); }
+.dxf-unit-btn.selected { background:var(--accent-glow); border-color:var(--accent); color:var(--accent); }
+.dxf-unit-btn .dub-label { font-size:13px; font-weight:700; display:block; margin-bottom:2px; }
+.dxf-unit-btn .dub-sub { font-size:8px; opacity:0.7; display:block; }
+.dxf-merge-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; }
+.dxf-merge-btn { background:var(--bg-panel2); border:1px solid var(--border); border-radius:6px; padding:10px 12px; font-family:var(--font-mono); font-size:11px; color:var(--text-secondary); cursor:pointer; text-align:left; }
+.dxf-merge-btn:active { background:var(--bg-hover); }
+.dxf-merge-btn.selected { background:var(--accent-glow); border-color:var(--accent); color:var(--accent); }
+.dxf-merge-btn .dmb-title { font-weight:600; display:block; margin-bottom:2px; }
+.dxf-merge-btn .dmb-sub { font-size:9px; opacity:0.75; display:block; }
+
+/* Poly options bar */
+#poly-bar {
+  position:fixed; bottom:calc(var(--toolbar-h)+var(--safe-bottom)+10px); left:50%; transform:translateX(-50%);
+  background:var(--bg-panel); border:1px solid var(--border-bright); border-radius:10px;
+  padding:8px 14px; display:none; align-items:center; gap:10px; z-index:60;
+  box-shadow:0 4px 20px rgba(0,0,0,0.5); font-family:var(--font-mono);
+}
+#poly-bar.visible { display:flex; }
+#poly-sides-input { background:var(--bg-panel2); border:1px solid var(--border-bright); border-radius:6px; color:var(--accent); font-family:var(--font-mono); font-size:14px; padding:8px; width:60px; outline:none; text-align:right; }
+#poly-bar label { font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.08em; }
+#poly-inscribed { width:20px; height:20px; }
+
+/* CC bar */
+#cc-bar { position:fixed; bottom:calc(var(--toolbar-h)+var(--safe-bottom)); left:0; right:0; height:18px; background:var(--bg-panel); border-top:1px solid var(--border); display:flex; align-items:center; justify-content:center; gap:6px; font-family:var(--font-mono); font-size:8px; color:var(--text-dim); pointer-events:auto; z-index:49; }
+.cc-link { color:var(--accent-dim); text-decoration:none; }
+.cc-link:hover { color:var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- FULL SCREEN CANVAS -->
+<div id="canvas-wrap">
+  <canvas id="main-canvas" tabindex="0"></canvas>
+  <div class="snap-ring" id="snap-ring"></div>
+  <div id="rect-preview"></div>
+  <div id="coord-overlay">
+    <span><span class="coord-label">X </span><span id="cx">0.0000</span></span>
+    <span><span class="coord-label">Y </span><span id="cy">0.0000</span></span>
+    <span class="coord-label" id="coord-unit-lbl">mm</span>
+  </div>
+  <div id="hint-bar">Tap to select · Swipe left edge for menu</div>
+</div>
+
+<!-- SWIPE HINT -->
+<div id="swipe-hint">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+
+<!-- CC BAR -->
+<div id="cc-bar">
+  <span>© <span id="cc-year"></span> · CC BY-SA 4.0 · </span>
+  <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" class="cc-link">.KAD TOUCH</a>
+</div>
+
+<!-- BOTTOM TOOLBAR -->
+<div id="toolbar">
+  <button class="tb-tool active" id="btn-select" ontouchend="setTool('select')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3l14 9-7 1-4 7z"/></svg>
+    SELECT
+  </button>
+  <div class="tb-sep-v"></div>
+  <button class="tb-tool" id="btn-line" ontouchend="setTool('line')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="4" y1="20" x2="20" y2="4"/><circle cx="4" cy="20" r="2" fill="currentColor"/><circle cx="20" cy="4" r="2" fill="currentColor"/></svg>
+    LINE
+  </button>
+  <button class="tb-tool" id="btn-rect" ontouchend="setTool('rect')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>
+    RECT
+  </button>
+  <button class="tb-tool" id="btn-polygon" ontouchend="setTool('polygon')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12,3 21,9 17,20 7,20 3,9"/></svg>
+    POLY
+  </button>
+  <div class="tb-sep-v"></div>
+  <button class="tb-tool" id="btn-offset" ontouchend="setTool('offset')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/><path d="M14 11.5l3 2.5-3 2.5" stroke-width="1.2"/></svg>
+    OFFSET
+  </button>
+  <button class="tb-tool" id="btn-rotate" ontouchend="setTool('rotate')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+    ROTATE
+  </button>
+  <div class="tb-sep-v"></div>
+  <button class="tb-tool" ontouchend="zoomExtents()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+    FIT
+  </button>
+  <button class="tb-tool" ontouchend="openDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    MENU
+  </button>
+</div>
+
+<!-- ROTATE BAR -->
+<div id="rotate-bar">
+  <button class="r-btn" ontouchend="rotateSelected(-90)">↺90°</button>
+  <button class="r-btn" ontouchend="rotateSelected(90)">↻90°</button>
+  <input type="number" id="rotate-angle-input" value="0" step="1"/>
+  <span style="color:var(--text-dim);font-size:11px;">°</span>
+  <button class="r-btn hi" ontouchend="applyRotationInput(false)">+Δ</button>
+  <button class="r-btn" ontouchend="applyRotationInput(true)">ABS</button>
+  <button class="r-btn" ontouchend="flattenSelection()">→0°</button>
+</div>
+
+<!-- POLY BAR -->
+<div id="poly-bar">
+  <label>SIDES</label>
+  <input type="number" id="poly-sides-input" value="6" min="3" max="64" step="1"/>
+  <label>CIRC</label>
+  <input type="checkbox" id="poly-inscribed" checked/>
+</div>
+
+<!-- SIDEBAR OVERLAY + DRAWER -->
+<div id="sidebar-overlay" ontouchend="closeDrawer()"></div>
+<div id="sidebar-drawer">
+  <div class="drawer-head">
+    <div class="drawer-brand">
+      <div class="drawer-brand-dot"></div>
+      <div>
+        <div>.KAD TOUCH</div>
+        <span class="drawer-brand-sub">Kernel-Aided Design · Touch Edition · v0.3</span>
+      </div>
+    </div>
+    <button class="drawer-close" ontouchend="closeDrawer()">✕</button>
+  </div>
+
+  <div class="drawer-section">File</div>
+  <div class="drawer-item green" ontouchend="saveKAD();closeDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    Save .kad
+  </div>
+  <div class="drawer-item" ontouchend="document.getElementById('load-kad').click();closeDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Open .kad
+  </div>
+  <input type="file" id="load-kad" accept=".kad" onchange="loadKAD(event)" style="display:none">
+  <div class="drawer-item green" ontouchend="exportDXF();closeDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    Export .dxf
+  </div>
+  <div class="drawer-item green" ontouchend="document.getElementById('load-dxf').click();closeDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Import .dxf
+  </div>
+  <input type="file" id="load-dxf" accept=".dxf,.DXF" onchange="importDXF(event)" style="display:none">
+
+  <div class="drawer-section">Edit</div>
+  <div class="drawer-item" ontouchend="deleteSelected();closeDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+    Delete Selected
+  </div>
+  <div class="drawer-item" ontouchend="if(confirm('Clear all geometry?')){GeoMemory.clear();render();}closeDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><line x1="4.22" y1="4.22" x2="19.78" y2="19.78"/></svg>
+    Clear All
+  </div>
+
+  <div class="drawer-section">View</div>
+  <div class="drawer-item" ontouchend="zoomExtents();closeDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+    Zoom Extents
+  </div>
+  <div class="drawer-item" ontouchend="initCamera();render();closeDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+    Reset View
+  </div>
+  <div class="drawer-item" ontouchend="toggleGrid();closeDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+    Toggle Grid
+  </div>
+  <div class="drawer-item" ontouchend="toggleSnap();closeDrawer()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/></svg>
+    Toggle Snap
+  </div>
+
+  <div class="drawer-section">Units</div>
+  <div class="drawer-unit-row">
+    <label>Working Units</label>
+    <button id="drawer-unit-toggle" ontouchend="toggleUnits()">
+      <span class="unit-seg active" id="unit-seg-mm">mm</span>
+      <span class="unit-div"></span>
+      <span class="unit-seg" id="unit-seg-in">in</span>
+    </button>
+  </div>
+
+  <div class="drawer-section">Properties</div>
+  <div class="drawer-item" style="cursor:default;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span>Objects: <span id="prop-objects" style="color:var(--accent)">0</span> &nbsp;·&nbsp; Lines: <span id="prop-lines">0</span></span>
+  </div>
+  <div class="drawer-item" style="cursor:default;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <span>Selected: <span id="prop-sel" style="color:var(--amber)">—</span></span>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div id="ctx-menu">
+  <div class="ctx-head">Actions</div>
+  <button class="ctx-item hi" id="ctx-cancel-btn" ontouchend="ctxCancelCommit()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="20 6 9 17 4 12"/></svg>
+    <span id="ctx-cancel-label">Cancel</span>
+  </button>
+  <button class="ctx-item" ontouchend="ctxClearSel()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    Clear Selection
+  </button>
+  <div class="ctx-sep"></div>
+  <div class="ctx-head">Draw</div>
+  <button class="ctx-item" ontouchend="setTool('line');closeCtxMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="4" y1="20" x2="20" y2="4"/></svg>Line</button>
+  <button class="ctx-item" ontouchend="setTool('rect');closeCtxMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>Rectangle</button>
+  <button class="ctx-item" ontouchend="setTool('offset');closeCtxMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/></svg>Offset</button>
+  <div class="ctx-sep"></div>
+  <div class="ctx-head">View</div>
+  <button class="ctx-item" ontouchend="zoomExtents();closeCtxMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>Zoom Extents</button>
+  <button class="ctx-item" ontouchend="deleteSelected();closeCtxMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>Delete Selected</button>
+</div>
+
+<!-- OFFSET DISTANCE MODAL -->
+<div class="modal-overlay" id="offset-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="modal-title">Offset Distance</span>
+      <button class="modal-close" ontouchend="cancelOffsetModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-input-row">
+        <input type="number" class="modal-input" id="offset-modal-input" min="0.0001" step="0.5" placeholder="10" inputmode="decimal"/>
+        <span class="modal-unit" id="offset-modal-unit">mm</span>
+      </div>
+      <div class="modal-hint">Enter the distance for the parallel offset line.</div>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" ontouchend="cancelOffsetModal()">Cancel</button>
+        <button class="modal-btn commit" ontouchend="confirmOffsetModal()">Offset</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DXF IMPORT MODAL -->
+<div class="modal-overlay" id="dxf-modal">
+  <div class="modal-box" style="max-height:90vh;overflow-y:auto;">
+    <div class="modal-head">
+      <span class="modal-title">Import DXF</span>
+      <button class="modal-close" ontouchend="closeDxfModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--bg-panel2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:14px;">
+        <div id="dlg-filename" style="font-size:11px;color:var(--text-primary);margin-bottom:6px;word-break:break-all;">—</div>
+        <div class="fi-row">Segments<span id="dlg-entity-count">—</span></div>
+        <div class="fi-row">Lines<span id="dlg-line-count">—</span></div>
+        <div class="fi-row">Circles<span id="dlg-circle-count">—</span></div>
+        <div class="fi-row">Arcs<span id="dlg-arc-count">—</span></div>
+        <div class="fi-row" style="margin-top:4px;">$INSUNITS<span id="dlg-insunits" class="">—</span></div>
+      </div>
+      <div class="modal-label">Interpret coordinates as —</div>
+      <div class="dxf-unit-grid">
+        <button class="dxf-unit-btn selected" id="dub-mm" ontouchend="selectDlgUnit('mm')"><span class="dub-label">mm</span><span class="dub-sub">millimeters</span></button>
+        <button class="dxf-unit-btn" id="dub-in" ontouchend="selectDlgUnit('in')"><span class="dub-label">in</span><span class="dub-sub">inches</span></button>
+        <button class="dxf-unit-btn" id="dub-auto" ontouchend="selectDlgUnit('auto')"><span class="dub-label">auto</span><span class="dub-sub">from file</span></button>
+      </div>
+      <div class="modal-label">Canvas —</div>
+      <div class="dxf-merge-grid">
+        <button class="dxf-merge-btn selected" id="dmb-merge" ontouchend="selectDlgMerge('merge')"><span class="dmb-title">Merge</span><span class="dmb-sub">Add to existing</span></button>
+        <button class="dxf-merge-btn" id="dmb-replace" ontouchend="selectDlgMerge('replace')"><span class="dmb-title">Replace</span><span class="dmb-sub">Clear first</span></button>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" ontouchend="closeDxfModal()">Cancel</button>
+        <button class="modal-btn commit" ontouchend="commitDxfImport()">Import</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STARTUP SPLASH (3 pages) -->
+<div id="splash">
+  <div id="splash-pages">
+
+    <!-- Page 0: Unit Choice -->
+    <div class="splash-page">
+      <div class="splash-logo"><div class="splash-logo-dot"></div>.KAD TOUCH</div>
+      <div class="splash-sub">Kernel-Aided Design · Touch Edition · v0.3</div>
+      <div class="splash-title">Choose your working units</div>
+      <div class="splash-body">All coordinates and dimensions will use this unit. You can change it anytime in the menu.</div>
+      <div class="unit-choice-grid">
+        <button class="unit-choice-btn mm-c" ontouchend="splashSelectUnit('mm')">
+          <span class="ucb-unit mm">mm</span>
+          <span class="ucb-name">Millimeters</span>
+          <span class="ucb-desc">ISO · Metric</span>
+        </button>
+        <button class="unit-choice-btn in-c" ontouchend="splashSelectUnit('in')">
+          <span class="ucb-unit in">in</span>
+          <span class="ucb-name">Inches</span>
+          <span class="ucb-desc">Imperial · US</span>
+        </button>
+      </div>
+      <div class="splash-nav">
+        <div class="splash-dot active" id="dot-0"></div>
+        <div class="splash-dot" id="dot-1"></div>
+        <div class="splash-dot" id="dot-2"></div>
+        <button class="splash-btn-skip" ontouchend="skipSplash()">Skip</button>
+      </div>
+    </div>
+
+    <!-- Page 1: Navigation -->
+    <div class="splash-page">
+      <div class="splash-title">Navigating the canvas</div>
+      <div class="splash-icon-row">
+        <div class="splash-icon-item">
+          <div class="splash-gesture">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5"><path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M6 14v1a6 6 0 0 0 12 0v-3"/></svg>
+          </div>
+          <span>One finger</span>
+          <span style="font-size:10px;color:var(--text-secondary);">Draw &amp; Select</span>
+        </div>
+        <div class="splash-icon-item">
+          <div class="splash-gesture">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="1.5"><circle cx="9" cy="6" r="2"/><circle cx="15" cy="6" r="2"/><path d="M9 8v7a3 3 0 0 0 6 0V8"/><line x1="6" y1="12" x2="18" y2="12" stroke-dasharray="2 2"/></svg>
+          </div>
+          <span>Two fingers</span>
+          <span style="font-size:10px;color:var(--text-secondary);">Pan &amp; Pinch-zoom</span>
+        </div>
+        <div class="splash-icon-item">
+          <div class="splash-gesture">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          </div>
+          <span>Long press</span>
+          <span style="font-size:10px;color:var(--text-secondary);">Context menu</span>
+        </div>
+      </div>
+      <div class="splash-body">
+        <b>One finger</b> — draw, tap to place, long-press for menu.<br><br>
+        <b>Two fingers together</b> — pinch to zoom, spread to pan. Works in any tool.<br><br>
+        <b>Hold + tap</b> — hold one finger, tap a second to set a selection box corner. Drag right-to-left for <span>crossing select</span> (green), left-to-right for <span>window select</span> (blue).<br><br>
+        Swipe from the <span>left edge</span> to open the menu.
+      </div>
+      <div class="splash-nav">
+        <div class="splash-dot" id="dot-0b"></div>
+        <div class="splash-dot active" id="dot-1b"></div>
+        <div class="splash-dot" id="dot-2b"></div>
+        <button class="splash-btn" ontouchend="splashNext()">Next →</button>
+      </div>
+    </div>
+
+    <!-- Page 2: Drawing -->
+    <div class="splash-page">
+      <div class="splash-title">Drawing &amp; precision input</div>
+      <div class="splash-body">
+        Select a draw tool from the <span>bottom toolbar</span>, then tap to place points.<br><br>
+        For precise coordinates, use the popups that appear automatically — tap the number, type with your keyboard, tap <b>confirm</b>.<br><br>
+        Select lines by tapping them. Use the <span>crossing drag</span> (right-to-left) to grab everything a box touches.
+      </div>
+      <div class="splash-nav">
+        <div class="splash-dot" id="dot-0c"></div>
+        <div class="splash-dot" id="dot-1c"></div>
+        <div class="splash-dot active" id="dot-2c"></div>
+        <button class="splash-btn" ontouchend="finishSplash()">Start Drawing</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- hidden offset dist store -->
+<input type="hidden" id="offset-dist-input" value="10"/>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════
+//  .KAD Touch  v0.3  — Touch-native edition
+// ═══════════════════════════════════════════════════════
+
+// ── CANVAS ──────────────────────────────────────────────
+const canvas = document.getElementById('main-canvas');
+const ctx    = canvas.getContext('2d');
+const wrap   = document.getElementById('canvas-wrap');
+
+function resizeCanvas() {
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+  render();
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ── CAMERA ──────────────────────────────────────────────
+const cam = { panX:0, panY:0, zoom:3.0, minZoom:0.05, maxZoom:200 };
+
+function initCamera() {
+  cam.panX = canvas.width  / 2;
+  cam.panY = canvas.height / 2;
+  cam.zoom = 3.0;
+  updateGridLabel();
+}
+function worldToScreen(wx,wy){ return {x:wx*cam.zoom+cam.panX, y:-wy*cam.zoom+cam.panY}; }
+function screenToWorld(sx,sy){ return {x:(sx-cam.panX)/cam.zoom, y:-(sy-cam.panY)/cam.zoom}; }
+
+// ── UNIT SYSTEM ─────────────────────────────────────────
+const MM_PER_IN = 25.4;
+const SPLASH_KEY = 'kad_touch_unit';
+let unitMode = 'mm';
+
+function toDisplay(mm)  { return unitMode==='in' ? mm/MM_PER_IN : mm; }
+function fromDisplay(v) { return unitMode==='in' ? v*MM_PER_IN  : v; }
+function unitLabel()    { return unitMode; }
+function unitDecimals() { return unitMode==='in' ? 5 : 4; }
+function fmtU(mm)       { return toDisplay(mm).toFixed(unitDecimals())+' '+unitLabel(); }
+function fmtCoord(mm)   { return toDisplay(mm).toFixed(unitDecimals()); }
+
+function applyUnit(unit) {
+  unitMode = unit;
+  document.getElementById('unit-seg-mm').classList.toggle('active', unit==='mm');
+  document.getElementById('unit-seg-in').classList.toggle('active', unit==='in');
+  document.getElementById('coord-unit-lbl').textContent = unit;
+  document.getElementById('offset-modal-unit').textContent = unit;
+  const di = document.getElementById('offset-dist-input');
+  if(unit==='in'){ di.value='0.5'; } else { di.value='10'; }
+  updateGridLabel(); render();
+}
+function toggleUnits() {
+  applyUnit(unitMode==='mm'?'in':'mm');
+  try{ localStorage.setItem(SPLASH_KEY, unitMode); }catch(e){}
+  showToast('Units: '+(unitMode==='mm'?'mm':'inches'));
+}
+
+// ── GEO MEMORY ──────────────────────────────────────────
+const GeoMemory = {
+  objects:[], nextId:1,
+  addLine(x1,y1,x2,y2,layer='Layer_0'){
+    const o={id:this.nextId++,type:'LINE',layer,x1,y1,x2,y2};
+    this.objects.push(o); updateProps(); return o;
+  },
+  addPoint(x,y,layer='Layer_0'){
+    const o={id:this.nextId++,type:'POINT',layer,x,y};
+    this.objects.push(o); updateProps(); return o;
+  },
+  remove(id){ this.objects=this.objects.filter(o=>o.id!==id); updateProps(); },
+  clear(){ this.objects=[]; this.nextId=1; updateProps(); },
+  allEndpoints(){
+    const pts=[];
+    for(const o of this.objects)
+      if(o.type==='LINE'){ pts.push({x:o.x1,y:o.y1}); pts.push({x:o.x2,y:o.y2}); }
+    return pts;
+  },
+  serialize(){ return JSON.stringify({version:'0.3',app:'kad-touch',units:'mm',displayUnits:unitMode,nextId:this.nextId,objects:this.objects},null,2); },
+  deserialize(s){
+    try{
+      const d=JSON.parse(s);
+      // Accept files from both desktop (.KAD) and touch (.KAD TOUCH) — same format
+      if(!d.objects) return false;
+      this.objects=d.objects; this.nextId=d.nextId||1;
+      if(d.displayUnits&&d.displayUnits!==unitMode) applyUnit(d.displayUnits);
+      updateProps(); return true;
+    }catch(e){ return false; }
+  },
+};
+
+// ── SNAP ────────────────────────────────────────────────
+const SNAP_PX = 28; // larger for touch
+let snapEnabled=true, snapActive=false, snapPoint=null;
+
+function findSnap(wx,wy){
+  if(!snapEnabled) return null;
+  const pts=GeoMemory.allEndpoints();
+  let best=null, bestD=Infinity;
+  const test=worldToScreen(wx,wy);
+  for(const p of pts){
+    const sp=worldToScreen(p.x,p.y);
+    const d=Math.hypot(sp.x-test.x,sp.y-test.y);
+    if(d<SNAP_PX&&d<bestD){ bestD=d; best=p; }
+  }
+  return best;
+}
+
+// ── STATE ────────────────────────────────────────────────
+let activeTool='select';
+let touchWorld={x:0,y:0}, touchScreen={x:0,y:0};
+let mouseWorld={x:0,y:0}, mouseScreen={x:0,y:0};
+let selectedIds=new Set();
+let lineState={active:false,x1:0,y1:0};
+let rectState={active:false,x1:0,y1:0};
+let polyState={active:false,cx:0,cy:0};
+let offsetState={active:false,selectedLine:null,previewPts:null};
+let rotateState={phase:0,pivotX:0,pivotY:0,pivotSet:false,draggingPivot:false,startAngle:0,previewDelta:0};
+
+const SEL_DRAG_THRESHOLD=12; // larger for touch
+let selBox={active:false,pending:false,startSX:0,startSY:0,startWX:0,startWY:0};
+
+// ── GRID ─────────────────────────────────────────────────
+const GRID_STEPS_MM=[0.1,0.5,1,2,5,10,20,50,100,200,500,1000];
+const GRID_STEPS_IN=[0.0625,0.125,0.25,0.5,1,2,6,12,24,60,120].map(s=>s*MM_PER_IN);
+
+function getGridSpacing(){
+  const steps=unitMode==='in'?GRID_STEPS_IN:GRID_STEPS_MM;
+  for(const s of steps){ if(s*cam.zoom>=48) return s; }
+  return steps[steps.length-1];
+}
+function updateGridLabel(){
+  const s=getGridSpacing();
+  let txt;
+  if(unitMode==='in'){
+    const inches=s/MM_PER_IN;
+    const fracs=[[1/16,'1/16"'],[1/8,'1/8"'],[1/4,'1/4"'],[1/2,'1/2"'],[1,'1"'],[2,'2"'],[6,'6"'],[12,'1ft'],[24,'2ft'],[60,'5ft'],[120,'10ft']];
+    const m=fracs.find(([v])=>Math.abs(v-inches)<1e-9);
+    txt=m?m[1]:inches.toFixed(4)+'"';
+  } else {
+    txt=s<1?`${s*1000}μm`:s<1000?`${s}mm`:`${s/1000}m`;
+  }
+  // no status bar in touch — just update internally
+}
+
+// ── SIDEBAR DRAWER ────────────────────────────────────────
+function openDrawer(){
+  document.getElementById('sidebar-drawer').classList.add('open');
+  document.getElementById('sidebar-overlay').classList.add('open');
+  document.getElementById('swipe-hint').style.opacity='0';
+}
+function closeDrawer(){
+  document.getElementById('sidebar-drawer').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
+// ── SPLASH ───────────────────────────────────────────────
+let splashPage=0;
+let splashUnitChosen=false;
+
+function splashSelectUnit(unit){
+  applyUnit(unit);
+  try{ localStorage.setItem(SPLASH_KEY, unit); }catch(e){}
+  splashUnitChosen=true;
+  splashPage=1;
+  moveSplashTo(1);
+}
+function splashNext(){ splashPage=2; moveSplashTo(2); }
+function moveSplashTo(n){
+  document.getElementById('splash-pages').style.transform=`translateX(${-n*33.333}%)`;
+}
+function skipSplash(){ finishSplash(); }
+function finishSplash(){
+  document.getElementById('splash').style.display='none';
+  canvas.focus();
+  if(!splashUnitChosen){
+    // Default mm if skipped
+    try{ localStorage.setItem(SPLASH_KEY,'mm'); }catch(e){}
+  }
+}
+function initSplash(){
+  document.getElementById('cc-year').textContent=new Date().getFullYear();
+  let saved=null;
+  try{ saved=localStorage.getItem(SPLASH_KEY); }catch(e){}
+  if(saved==='mm'||saved==='in'){
+    applyUnit(saved);
+    // Skip straight to nav page (show once only for unit choice)
+    splashPage=1; moveSplashTo(1);
+    // Actually skip entirely after first time
+    document.getElementById('splash').style.display='none';
+  }
+}
+
+// ── TOUCH GESTURE ENGINE ─────────────────────────────────
+// Gesture model:
+//   1 finger              → draw / tap / long-press (context menu)
+//   2 fingers together    → pinch-zoom + pan (always, any tool)
+//   1 finger HELD + 2nd finger TAP → selection box
+//     left-to-right box  → Window select  (solid cyan)
+//     right-to-left box  → Crossing select (dashed green)
+//
+// Panning is TWO-FINGER ONLY. One finger never pans.
+// This eliminates the ambiguity between draw and pan on touch.
+
+const LONG_PRESS_MS    = 480;
+const SEL_BOX_GESTURE_MS = 600; // how long first finger must be held before 2nd tap activates sel-box
+
+let longPressTimer  = null;
+let longPressFired  = false;
+let touchStartX     = 0;
+let touchStartY     = 0;
+let touchStartTime  = 0;  // timestamp of first finger down
+
+// Pinch state
+let pinchStartDist  = 0;
+let pinchStartZoom  = 0;
+let pinchStartPanX  = 0;
+let pinchStartPanY  = 0;
+let pinchMidX       = 0;  // midpoint at pinch start
+let pinchMidY       = 0;
+let isPinching      = false;
+
+// Selection box via two-touch gesture
+// Phase: 0=idle, 1=first finger held (waiting for 2nd), 2=box active
+let selBoxGesture = {
+  phase:    0,
+  finger1X: 0, finger1Y: 0,  // screen coords of held finger
+  finger1WX:0, finger1WY:0,  // world coords
+  finger2X: 0, finger2Y: 0,
+};
+
+function getTouchPos(t) {
+  const r = canvas.getBoundingClientRect();
+  return { x: t.clientX - r.left, y: t.clientY - r.top };
+}
+
+canvas.addEventListener('touchstart',  onTouchStart,  {passive:false});
+canvas.addEventListener('touchmove',   onTouchMove,   {passive:false});
+canvas.addEventListener('touchend',    onTouchEnd,    {passive:false});
+canvas.addEventListener('touchcancel', onTouchCancel, {passive:false});
+
+function onTouchStart(e) {
+  e.preventDefault();
+  closeCtxMenu();
+
+  const nTouches = e.touches.length;
+
+  // ── TWO FINGERS: pinch/pan ──────────────────────────────
+  if (nTouches === 2) {
+    clearTimeout(longPressTimer);
+    longPressFired = false;
+    isPinching = true;
+
+    // If sel-box gesture was in phase 1 (finger held), 2nd touch = sel-box anchor
+    if (selBoxGesture.phase === 1) {
+      selBoxGesture.phase = 2;
+      const t1 = getTouchPos(e.touches[1]); // new finger is the corner
+      // Determine which touch index is the held finger
+      // The held finger was e.touches[0] if it was placed first — but touchstart
+      // fires with the new touch appended. Find which matches stored position.
+      const t0 = getTouchPos(e.touches[0]);
+      const dist0 = Math.hypot(t0.x-selBoxGesture.finger1X, t0.y-selBoxGesture.finger1Y);
+      const dist1 = Math.hypot(t1.x-selBoxGesture.finger1X, t1.y-selBoxGesture.finger1Y);
+      const anchor = dist0 < dist1 ? t0 : t1;
+      const corner = dist0 < dist1 ? t1 : t0;
+
+      const raw = screenToWorld(corner.x, corner.y);
+      const snap = findSnap(raw.x, raw.y);
+      mouseWorld  = snap || raw;
+      mouseScreen = corner;
+
+      selBox.active   = true;
+      selBox.startSX  = anchor.x;
+      selBox.startSY  = anchor.y;
+      selBox.startWX  = selBoxGesture.finger1WX;
+      selBox.startWY  = selBoxGesture.finger1WY;
+      isPinching      = false; // override — this is sel-box not pinch
+      render();
+      return;
+    }
+
+    // Normal pinch setup
+    selBoxGesture.phase = 0;
+    selBox.active = false; selBox.pending = false;
+    const t0 = getTouchPos(e.touches[0]), t1 = getTouchPos(e.touches[1]);
+    pinchStartDist = Math.hypot(t1.x-t0.x, t1.y-t0.y);
+    pinchStartZoom = cam.zoom;
+    pinchStartPanX = cam.panX;
+    pinchStartPanY = cam.panY;
+    pinchMidX = (t0.x+t1.x)/2;
+    pinchMidY = (t0.y+t1.y)/2;
+    return;
+  }
+
+  // ── ONE FINGER ───────────────────────────────────────────
+  if (nTouches === 1) {
+    isPinching = false;
+    longPressFired = false;
+
+    const t = getTouchPos(e.touches[0]);
+    touchStartX   = t.x;
+    touchStartY   = t.y;
+    touchStartTime = Date.now();
+
+    const raw  = screenToWorld(t.x, t.y);
+    const snap = findSnap(raw.x, raw.y);
+    snapActive   = !!snap;
+    snapPoint    = snap;
+    mouseWorld   = snap || raw;
+    mouseScreen  = t;
+
+    // Swipe-from-left-edge → open drawer
+    if (t.x < 32) {
+      selBoxGesture.phase = 0;
+      return;
+    }
+
+    // Long-press timer → context menu
+    longPressTimer = setTimeout(() => {
+      if (selBoxGesture.phase === 0 || selBoxGesture.phase === 1) {
+        longPressFired = true;
+        selBoxGesture.phase = 0;
+        if (navigator.vibrate) navigator.vibrate(40);
+        openCtxMenu(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, LONG_PRESS_MS);
+
+    // Start sel-box phase 1: finger is held, waiting for 2nd touch
+    // Only in select/rotate context
+    if (activeTool === 'select' || (activeTool === 'rotate' && selectedIds.size === 0)) {
+      selBoxGesture.phase   = 1;
+      selBoxGesture.finger1X = t.x;
+      selBoxGesture.finger1Y = t.y;
+      selBoxGesture.finger1WX = mouseWorld.x;
+      selBoxGesture.finger1WY = mouseWorld.y;
+    }
+  }
+}
+
+function onTouchMove(e) {
+  e.preventDefault();
+
+  // ── PINCH/PAN (two fingers) ──────────────────────────────
+  if (e.touches.length === 2 && isPinching) {
+    const t0 = getTouchPos(e.touches[0]), t1 = getTouchPos(e.touches[1]);
+    const dist = Math.hypot(t1.x-t0.x, t1.y-t0.y);
+    const mx = (t0.x+t1.x)/2, my = (t0.y+t1.y)/2;
+
+    // Scale around the initial midpoint
+    const scale = dist / pinchStartDist;
+    const nz = Math.max(cam.minZoom, Math.min(cam.maxZoom, pinchStartZoom * scale));
+
+    // Pan: midpoint translation
+    const panDX = mx - pinchMidX;
+    const panDY = my - pinchMidY;
+
+    // Zoom anchored to midpoint
+    cam.zoom = nz;
+    cam.panX = pinchMidX - (pinchMidX - pinchStartPanX) * (nz / pinchStartZoom) + panDX;
+    cam.panY = pinchMidY - (pinchMidY - pinchStartPanY) * (nz / pinchStartZoom) + panDY;
+
+    updateGridLabel();
+    render();
+    return;
+  }
+
+  // ── SEL-BOX PHASE 2: second finger dragging ───────────────
+  if (e.touches.length === 2 && selBoxGesture.phase === 2) {
+    // Find the moving finger (not the anchor)
+    const t0 = getTouchPos(e.touches[0]), t1 = getTouchPos(e.touches[1]);
+    const dist0 = Math.hypot(t0.x-selBoxGesture.finger1X, t0.y-selBoxGesture.finger1Y);
+    const dist1 = Math.hypot(t1.x-selBoxGesture.finger1X, t1.y-selBoxGesture.finger1Y);
+    const moving = dist0 > dist1 ? t0 : t1;
+    const raw = screenToWorld(moving.x, moving.y);
+    const snap = findSnap(raw.x, raw.y);
+    mouseWorld  = snap || raw;
+    mouseScreen = moving;
+    render();
+    return;
+  }
+
+  // ── SINGLE FINGER MOVE ───────────────────────────────────
+  if (e.touches.length === 1) {
+    const t   = getTouchPos(e.touches[0]);
+    const raw = screenToWorld(t.x, t.y);
+    const snap = findSnap(raw.x, raw.y);
+    snapActive  = !!snap;
+    snapPoint   = snap;
+    mouseWorld  = snap || raw;
+    mouseScreen = t;
+
+    document.getElementById('cx').textContent = fmtCoord(mouseWorld.x);
+    document.getElementById('cy').textContent = fmtCoord(mouseWorld.y);
+
+    const ring = document.getElementById('snap-ring');
+    if (snapActive) {
+      const sp = worldToScreen(snapPoint.x, snapPoint.y);
+      ring.style.display = 'block';
+      ring.style.left = sp.x + 'px';
+      ring.style.top  = sp.y + 'px';
+    } else { ring.style.display = 'none'; }
+
+    // Cancel long-press if finger moved significantly
+    const moved = Math.hypot(t.x - touchStartX, t.y - touchStartY);
+    if (moved > 10) {
+      clearTimeout(longPressTimer);
+      // Also cancel sel-box phase 1 if finger dragged before 2nd touch
+      if (selBoxGesture.phase === 1) selBoxGesture.phase = 0;
+    }
+
+    // Offset preview
+    if (activeTool === 'offset' && offsetState.active && offsetState.selectedLine) {
+      const ln = offsetState.selectedLine;
+      const side = sideOfLine(ln.x1,ln.y1,ln.x2,ln.y2, mouseWorld.x,mouseWorld.y);
+      offsetState.previewPts = buildOffsetLine(ln, side * getOffsetDist());
+    }
+
+    // Rotate pivot drag / angle preview
+    if (activeTool === 'rotate' && rotateState.draggingPivot) {
+      rotateState.pivotX = mouseWorld.x;
+      rotateState.pivotY = mouseWorld.y;
+      rotateState.pivotSet = true;
+    } else if (activeTool === 'rotate' && rotateState.phase === 1) {
+      const piv = getActivePivot();
+      const sp  = worldToScreen(piv.x, piv.y);
+      const a   = Math.atan2(-(t.y-sp.y), t.x-sp.x) * 180 / Math.PI;
+      rotateState.previewDelta = normaliseAngle(a - rotateState.startAngle);
+    }
+
+    render();
+  }
+}
+
+function onTouchEnd(e) {
+  e.preventDefault();
+  clearTimeout(longPressTimer);
+
+  if (longPressFired) { longPressFired = false; return; }
+
+  const nRemaining = e.touches.length;
+
+  // ── PINCH ENDED ──────────────────────────────────────────
+  if (isPinching && nRemaining < 2) {
+    isPinching = false;
+    return;
+  }
+
+  // ── SEL-BOX PHASE 2 COMMIT (second finger lifted) ────────
+  if (selBoxGesture.phase === 2 && nRemaining <= 1) {
+    selBoxGesture.phase = 0;
+    selBox.active = false;
+
+    const wx0 = selBox.startWX,   wy0 = selBox.startWY;
+    const wx1 = mouseWorld.x,     wy1 = mouseWorld.y;
+    const lx = Math.min(wx0,wx1), rx = Math.max(wx0,wx1);
+    const by = Math.min(wy0,wy1), ty = Math.max(wy0,wy1);
+    const leftToRight = mouseScreen.x >= selBox.startSX;
+
+    selectedIds.clear();
+    for (const o of GeoMemory.objects) {
+      const hit = leftToRight
+        ? selBoxWindow(o, lx, rx, by, ty)
+        : selBoxCrossing(o, lx, rx, by, ty);
+      if (hit) selectedIds.add(o.id);
+    }
+    const n = selectedIds.size;
+    if (n > 0) showToast(`${leftToRight ? 'Window' : 'Crossing'}: ${n} object${n>1?'s':''}`);
+    else showToast('No objects in selection');
+    updateSelectionProps();
+    render();
+    return;
+  }
+
+  // ── SEL-BOX PHASE 1 TIMEOUT: treat as tap if 2nd finger never came ──
+  // (finger lifted before 2nd touch — just a regular tap)
+  if (selBoxGesture.phase === 1) {
+    selBoxGesture.phase = 0;
+  }
+
+  // No touches remaining — process the lift as a tap
+  if (nRemaining === 0) {
+    const ct = e.changedTouches[0];
+    const t  = getTouchPos(ct);
+
+    // Swipe-from-left-edge
+    if (touchStartX < 32 && t.x > 64) { openDrawer(); return; }
+
+    const wp = snapActive && snapPoint ? snapPoint : mouseWorld;
+
+    // Release pivot drag
+    if (activeTool === 'rotate' && rotateState.draggingPivot) {
+      rotateState.draggingPivot = false; render(); return;
+    }
+
+    // ── SELECT: tap to pick ──────────────────────────────
+    if (activeTool === 'select') {
+      const hit = pickObject(t.x, t.y);
+      if (hit) { selectedIds.clear(); selectedIds.add(hit.id); }
+      else selectedIds.clear();
+      updateSelectionProps(); render(); return;
+    }
+
+    // ── LINE ─────────────────────────────────────────────
+    if (activeTool === 'line') {
+      if (!lineState.active) {
+        lineState = { active:true, x1:wp.x, y1:wp.y };
+        GeoMemory.addPoint(wp.x, wp.y);
+      } else {
+        if (Math.abs(wp.x-lineState.x1)>1e-9 || Math.abs(wp.y-lineState.y1)>1e-9)
+          GeoMemory.addLine(lineState.x1, lineState.y1, wp.x, wp.y);
+        lineState = { active:true, x1:wp.x, y1:wp.y };
+      }
+      render(); return;
+    }
+
+    // ── RECT ─────────────────────────────────────────────
+    if (activeTool === 'rect') {
+      if (!rectState.active) {
+        rectState = { active:true, x1:wp.x, y1:wp.y };
+      } else {
+        commitRect(rectState.x1, rectState.y1, wp.x, wp.y);
+        rectState = { active:false };
+        document.getElementById('rect-preview').style.display = 'none';
+      }
+      render(); return;
+    }
+
+    // ── POLYGON ──────────────────────────────────────────
+    if (activeTool === 'polygon') {
+      if (!polyState.active) { polyState = { active:true, cx:wp.x, cy:wp.y }; }
+      else { commitPolygon(polyState.cx, polyState.cy, wp.x, wp.y); polyState = { active:false }; }
+      render(); return;
+    }
+
+    // ── OFFSET ───────────────────────────────────────────
+    if (activeTool === 'offset') {
+      if (!offsetState.active) {
+        const hit = pickLine(t.x, t.y);
+        if (hit) {
+          offsetState.active = true;
+          offsetState.selectedLine = hit;
+          openOffsetModal();
+        } else { showToast('Tap closer to a line'); }
+      } else {
+        if (offsetState.previewPts) {
+          const p = offsetState.previewPts;
+          GeoMemory.addLine(p.x1,p.y1,p.x2,p.y2);
+          showToast('Offset committed · ' + fmtU(getOffsetDist()));
+        }
+        offsetState = { active:false, selectedLine:null, previewPts:null };
+      }
+      render(); return;
+    }
+
+    // ── ROTATE ───────────────────────────────────────────
+    if (activeTool === 'rotate') {
+      if (selectedIds.size === 0) {
+        const hit = pickObject(t.x, t.y);
+        if (hit) { selectedIds.add(hit.id); updateSelectionProps(); render(); return; }
+        showToast('Tap a line to select, or use two-finger drag-select'); return;
+      }
+      const piv = getActivePivot();
+      const sp  = worldToScreen(piv.x, piv.y);
+      if (Math.hypot(t.x-sp.x, t.y-sp.y) <= PIVOT_HANDLE_PX + 10) {
+        rotateState.draggingPivot = true; return;
+      }
+      if (rotateState.phase === 0) {
+        rotateState.phase = 1;
+        rotateState.startAngle = Math.atan2(-(t.y-sp.y), t.x-sp.x) * 180/Math.PI;
+        rotateState.previewDelta = 0;
+        showToast('Move finger and tap to confirm rotation');
+      } else {
+        rotateSelected(rotateState.previewDelta, getActivePivot());
+        rotateState.phase = 0; rotateState.previewDelta = 0; rotateState.startAngle = 0;
+      }
+      render(); return;
+    }
+  }
+}
+
+function onTouchCancel(e) {
+  clearTimeout(longPressTimer);
+  longPressFired = false;
+  isPinching     = false;
+  selBoxGesture.phase = 0;
+  selBox.active  = false;
+  selBox.pending = false;
+}
+
+// ── OFFSET MODAL ─────────────────────────────────────────
+function getOffsetDist(){
+  const v=parseFloat(document.getElementById('offset-dist-input').value);
+  const dv=(isNaN(v)||v<=0)?(unitMode==='in'?0.3937:10):v;
+  return parseFloat(fromDisplay(dv).toFixed(6));
+}
+
+function openOffsetModal(){
+  const mm=getOffsetDist();
+  const inp=document.getElementById('offset-modal-input');
+  inp.value=parseFloat(toDisplay(mm).toFixed(unitDecimals()));
+  document.getElementById('offset-modal-unit').textContent=unitLabel();
+  document.getElementById('offset-modal').classList.add('open');
+  setTimeout(()=>{ inp.focus(); inp.select(); },100);
+}
+function cancelOffsetModal(){
+  document.getElementById('offset-modal').classList.remove('open');
+  offsetState={active:false,selectedLine:null,previewPts:null};
+  render();
+}
+function confirmOffsetModal(){
+  const v=parseFloat(document.getElementById('offset-modal-input').value);
+  if(isNaN(v)||v<=0){ return; }
+  const mm=fromDisplay(v);
+  document.getElementById('offset-dist-input').value=parseFloat(toDisplay(mm).toFixed(unitDecimals()));
+  document.getElementById('offset-modal').classList.remove('open');
+  showToast(`Offset ${fmtU(mm)} — tap side to confirm`);
+}
+document.getElementById('offset-modal-input').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ e.preventDefault(); confirmOffsetModal(); }
+  if(e.key==='Escape'){ cancelOffsetModal(); }
+});
+
+// ── CONTEXT MENU ─────────────────────────────────────────
+const ctxMenu=document.getElementById('ctx-menu');
+function openCtxMenu(cx,cy){
+  const lbl=document.getElementById('ctx-cancel-label');
+  lbl.textContent=(activeTool==='line'&&lineState.active)?'Commit Line':'Cancel';
+  ctxMenu.style.left=cx+'px'; ctxMenu.style.top=cy+'px';
+  ctxMenu.classList.add('open');
+  requestAnimationFrame(()=>{
+    const r=ctxMenu.getBoundingClientRect();
+    if(r.right>window.innerWidth)  ctxMenu.style.left=(cx-r.width)+'px';
+    if(r.bottom>window.innerHeight) ctxMenu.style.top=(cy-r.height)+'px';
+  });
+}
+function closeCtxMenu(){ ctxMenu.classList.remove('open'); }
+document.addEventListener('touchstart',e=>{ if(!ctxMenu.contains(e.target)) closeCtxMenu(); },{passive:true});
+
+function ctxCancelCommit(){
+  closeCtxMenu();
+  if(activeTool==='line'&&lineState.active){ lineState={active:false}; render(); return; }
+  cancelTool(); render();
+}
+function ctxClearSel(){ closeCtxMenu(); selectedIds.clear(); updateSelectionProps(); setTool('select'); }
+
+// ── TOOL MANAGEMENT ──────────────────────────────────────
+function cancelTool(){
+  lineState={active:false}; rectState={active:false}; polyState={active:false};
+  offsetState={active:false,selectedLine:null,previewPts:null};
+  rotateState={phase:0,pivotX:0,pivotY:0,pivotSet:false,draggingPivot:false,startAngle:0,previewDelta:0};
+  selBox={active:false,pending:false,startSX:0,startSY:0,startWX:0,startWY:0};
+  document.getElementById('rect-preview').style.display='none';
+}
+
+function setTool(tool){
+  cancelTool(); closeCtxMenu();
+  if(tool!=='rotate'){ selectedIds.clear(); updateSelectionProps(); }
+  activeTool=tool;
+
+  document.querySelectorAll('.tb-tool').forEach(b=>b.classList.remove('active'));
+  const m={select:'btn-select',line:'btn-line',rect:'btn-rect',polygon:'btn-polygon',offset:'btn-offset',rotate:'btn-rotate'};
+  if(m[tool]) document.getElementById(m[tool]).classList.add('active');
+
+  const hintMap={
+    select: 'Tap to select · Drag to box-select · Two fingers to pan/zoom',
+    line:   'Tap to set start → tap again for end · Long-press to cancel',
+    rect:   'Tap corner → tap opposite corner',
+    polygon:'Tap center → tap to set radius',
+    offset: 'Tap a line → enter distance → tap side to confirm',
+    rotate: 'Tap/drag-select lines · then tap canvas to set rotation',
+  };
+  document.getElementById('hint-bar').innerHTML=hintMap[tool]||'';
+
+  document.getElementById('rotate-bar').classList.toggle('visible', tool==='rotate');
+  document.getElementById('poly-bar').classList.toggle('visible', tool==='polygon');
+  render();
+}
+
+// ── GEOMETRY TOOLS ───────────────────────────────────────
+function commitRect(x1,y1,x2,y2){
+  const lx=Math.min(x1,x2),rx=Math.max(x1,x2);
+  const by=Math.min(y1,y2),ty=Math.max(y1,y2);
+  GeoMemory.addLine(lx,by,rx,by); GeoMemory.addLine(rx,by,rx,ty);
+  GeoMemory.addLine(rx,ty,lx,ty); GeoMemory.addLine(lx,ty,lx,by);
+  showToast(`Rect ${fmtU(Math.abs(x2-x1))} × ${fmtU(Math.abs(y2-y1))}`);
+}
+
+function getPolySides(){ return Math.max(3,parseInt(document.getElementById('poly-sides-input').value)||6); }
+function getPolyInscribed(){ return document.getElementById('poly-inscribed').checked; }
+
+function commitPolygon(cx,cy,px,py){
+  const n=getPolySides(), r=Math.hypot(px-cx,py-cy);
+  if(r<1e-6){ showToast('Too small'); return; }
+  const vr=getPolyInscribed()?r:r/Math.cos(Math.PI/n);
+  const sa=Math.atan2(py-cy,px-cx), pts=[];
+  for(let i=0;i<n;i++){ const a=sa+i*(2*Math.PI/n); pts.push({x:parseFloat((cx+vr*Math.cos(a)).toFixed(6)),y:parseFloat((cy+vr*Math.sin(a)).toFixed(6))}); }
+  for(let i=0;i<n;i++){ const a=pts[i],b=pts[(i+1)%n]; GeoMemory.addLine(a.x,a.y,b.x,b.y); }
+  showToast(`${n}-gon r=${fmtU(r)}`);
+}
+
+// ── OFFSET MATH ──────────────────────────────────────────
+function lineNormal(x1,y1,x2,y2){
+  const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);
+  if(len<1e-10) return {nx:0,ny:1};
+  return {nx:-dy/len,ny:dx/len};
+}
+function sideOfLine(lx1,ly1,lx2,ly2,px,py){ return((lx2-lx1)*(py-ly1)-(ly2-ly1)*(px-lx1))>=0?1:-1; }
+function buildOffsetLine(line,signedDist){
+  const {nx,ny}=lineNormal(line.x1,line.y1,line.x2,line.y2);
+  return{x1:parseFloat((line.x1+nx*signedDist).toFixed(6)),y1:parseFloat((line.y1+ny*signedDist).toFixed(6)),
+         x2:parseFloat((line.x2+nx*signedDist).toFixed(6)),y2:parseFloat((line.y2+ny*signedDist).toFixed(6))};
+}
+const HIT_PX=32; // larger for touch
+function pickLine(sx,sy){
+  let best=null,bestD=Infinity;
+  for(const o of GeoMemory.objects){
+    if(o.type!=='LINE') continue;
+    const a=worldToScreen(o.x1,o.y1),b=worldToScreen(o.x2,o.y2);
+    const d=ptSegDist(sx,sy,a.x,a.y,b.x,b.y);
+    if(d<HIT_PX&&d<bestD){ bestD=d; best=o; }
+  }
+  return best;
+}
+function pickObject(sx,sy){ return pickLine(sx,sy); }
+function ptSegDist(px,py,ax,ay,bx,by){
+  const dx=bx-ax,dy=by-ay,lenSq=dx*dx+dy*dy;
+  if(lenSq<1e-10) return Math.hypot(px-ax,py-ay);
+  const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/lenSq));
+  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
+}
+
+// ── SELECTION BOX ─────────────────────────────────────────
+function selBoxWindow(obj,lx,rx,by,ty){
+  if(obj.type!=='LINE') return false;
+  return obj.x1>=lx&&obj.x1<=rx&&obj.y1>=by&&obj.y1<=ty&&obj.x2>=lx&&obj.x2<=rx&&obj.y2>=by&&obj.y2<=ty;
+}
+function selBoxCrossing(obj,lx,rx,by,ty){
+  if(obj.type!=='LINE') return false;
+  if((obj.x1>=lx&&obj.x1<=rx&&obj.y1>=by&&obj.y1<=ty)||(obj.x2>=lx&&obj.x2<=rx&&obj.y2>=by&&obj.y2<=ty)) return true;
+  return segIntersectsBox(obj.x1,obj.y1,obj.x2,obj.y2,lx,rx,by,ty);
+}
+function segIntersectsBox(ax,ay,bx,by,lx,rx,bby,ty){
+  const edges=[[lx,bby,lx,ty],[rx,bby,rx,ty],[lx,bby,rx,bby],[lx,ty,rx,ty]];
+  for(const[ex1,ey1,ex2,ey2]of edges) if(segIntersects(ax,ay,bx,by,ex1,ey1,ex2,ey2)) return true;
+  return false;
+}
+function segIntersects(ax,ay,bx,by,cx,cy,dx,dy){
+  const denom=(bx-ax)*(dy-cy)-(by-ay)*(dx-cx);
+  if(Math.abs(denom)<1e-12) return false;
+  const t=((cx-ax)*(dy-cy)-(cy-ay)*(dx-cx))/denom;
+  const u=((cx-ax)*(by-ay)-(cy-ay)*(bx-ax))/denom;
+  return t>=0&&t<=1&&u>=0&&u<=1;
+}
+
+// ── SELECTION PROPS ───────────────────────────────────────
+function updateSelectionProps(){
+  const el=document.getElementById('prop-sel');
+  el.textContent=selectedIds.size>0?selectedIds.size+' obj':'—';
+  const selLines=GeoMemory.objects.filter(o=>selectedIds.has(o.id)&&o.type==='LINE');
+  document.getElementById('rotate-bar').classList.toggle('visible',
+    activeTool==='rotate'||(selectedIds.size>0&&activeTool==='select'));
+  if(selLines.length===1){
+    document.getElementById('rotate-angle-input').value=lineAngleDeg(selLines[0]).toFixed(2);
+  }
+}
+
+function deleteSelected(){
+  if(selectedIds.size===0){ showToast('Nothing selected'); return; }
+  for(const id of selectedIds) GeoMemory.remove(id);
+  showToast(`Deleted ${selectedIds.size} object(s)`);
+  selectedIds.clear(); updateSelectionProps(); render();
+}
+
+// ── ROTATION ─────────────────────────────────────────────
+const PIVOT_HANDLE_PX=18;
+function lineAngleDeg(ln){ return Math.atan2(ln.y2-ln.y1,ln.x2-ln.x1)*180/Math.PI; }
+function normaliseAngle(deg){ let a=deg%360; if(a>180)a-=360; if(a<=-180)a+=360; return a; }
+function selectionCentroid(){
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for(const o of GeoMemory.objects){
+    if(!selectedIds.has(o.id)||o.type!=='LINE') continue;
+    x0=Math.min(x0,o.x1,o.x2); x1=Math.max(x1,o.x1,o.x2);
+    y0=Math.min(y0,o.y1,o.y2); y1=Math.max(y1,o.y1,o.y2);
+  }
+  return isFinite(x0)?{x:(x0+x1)/2,y:(y0+y1)/2}:null;
+}
+function getActivePivot(){
+  if(rotateState.pivotSet) return{x:rotateState.pivotX,y:rotateState.pivotY};
+  return selectionCentroid()||{x:0,y:0};
+}
+function rotatePoint(px,py,pivX,pivY,deg){
+  const r=deg*Math.PI/180,cos=Math.cos(r),sin=Math.sin(r);
+  const dx=px-pivX,dy=py-pivY;
+  return{x:parseFloat((pivX+dx*cos-dy*sin).toFixed(6)),y:parseFloat((pivY+dx*sin+dy*cos).toFixed(6))};
+}
+function rotateSelected(deltaDeg,pivot){
+  if(selectedIds.size===0){ showToast('Select lines first'); return; }
+  const p=pivot||selectionCentroid(); if(!p) return;
+  let count=0;
+  for(const o of GeoMemory.objects){
+    if(!selectedIds.has(o.id)||o.type!=='LINE') continue;
+    const na=rotatePoint(o.x1,o.y1,p.x,p.y,deltaDeg);
+    const nb=rotatePoint(o.x2,o.y2,p.x,p.y,deltaDeg);
+    o.x1=na.x;o.y1=na.y;o.x2=nb.x;o.y2=nb.y; count++;
+  }
+  updateSelectionProps(); render();
+  showToast(`Rotated ${count} line(s) ${deltaDeg>0?'+':''}${deltaDeg.toFixed(2)}°`);
+}
+function applyRotationInput(absolute){
+  const raw=parseFloat(document.getElementById('rotate-angle-input').value);
+  if(isNaN(raw)){ showToast('Enter an angle'); return; }
+  if(absolute){
+    const selLines=GeoMemory.objects.filter(o=>selectedIds.has(o.id)&&o.type==='LINE');
+    if(!selLines.length){ showToast('Select a line'); return; }
+    rotateSelected(normaliseAngle(raw-lineAngleDeg(selLines[0])));
+  } else { rotateSelected(raw); }
+}
+function flattenSelection(){
+  const selLines=GeoMemory.objects.filter(o=>selectedIds.has(o.id)&&o.type==='LINE');
+  if(!selLines.length){ showToast('Select a line first'); return; }
+  rotateSelected(-lineAngleDeg(selLines[0]));
+}
+
+// ── VIEW ─────────────────────────────────────────────────
+let showGrid_=true;
+function toggleGrid(){ showGrid_=!showGrid_; render(); showToast('Grid '+(showGrid_?'on':'off')); }
+function toggleSnap(){ snapEnabled=!snapEnabled; showToast('Snap '+(snapEnabled?'on':'off')); }
+function zoomExtents(){
+  const objs=GeoMemory.objects;
+  if(!objs.length){ initCamera(); render(); showToast('No geometry'); return; }
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for(const o of objs){
+    if(o.type==='LINE'){ x0=Math.min(x0,o.x1,o.x2);x1=Math.max(x1,o.x1,o.x2);y0=Math.min(y0,o.y1,o.y2);y1=Math.max(y1,o.y1,o.y2); }
+  }
+  const rx=(x1-x0)||20,ry=(y1-y0)||20,pad=0.15;
+  const zoom=Math.min(canvas.width/(rx*(1+2*pad)),canvas.height/(ry*(1+2*pad)));
+  cam.zoom=Math.max(cam.minZoom,Math.min(cam.maxZoom,zoom));
+  cam.panX=canvas.width/2-((x0+x1)/2)*cam.zoom;
+  cam.panY=canvas.height/2+((y0+y1)/2)*cam.zoom;
+  updateGridLabel(); render(); showToast('Zoom Extents');
+}
+
+// ── RENDER ───────────────────────────────────────────────
+const C={bg:'#080a0e',grid:'#141c28',gridMaj:'#1c2535',axis:'#1e3348',entity:'#00d4ff',entitySel:'#ffaa00',point:'#ffaa00',rubberLine:'#00d4ff',startPt:'#00ff9d'};
+
+function render(){
+  const W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H); ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  if(showGrid_) drawGrid(W,H);
+  drawEntities(); drawRubberBand(); drawOffsetPreview(); drawPolyPreview(); drawRotatePreview(); drawSelBox();
+}
+
+function drawGrid(W,H){
+  const spacing=getGridSpacing(),major=10;
+  const tl=screenToWorld(0,0),br=screenToWorld(W,H);
+  const x0=Math.floor(tl.x/spacing)*spacing,x1=Math.ceil(br.x/spacing)*spacing;
+  const y0=Math.floor(br.y/spacing)*spacing,y1=Math.ceil(tl.y/spacing)*spacing;
+  ctx.lineWidth=1; ctx.strokeStyle=C.grid; ctx.beginPath();
+  for(let x=x0;x<=x1;x+=spacing){ if(Math.round(x/spacing)%major!==0){const sx=worldToScreen(x,0).x;ctx.moveTo(sx,0);ctx.lineTo(sx,H);} }
+  for(let y=y0;y<=y1;y+=spacing){ if(Math.round(y/spacing)%major!==0){const sy=worldToScreen(0,y).y;ctx.moveTo(0,sy);ctx.lineTo(W,sy);} }
+  ctx.stroke();
+  ctx.strokeStyle=C.gridMaj; ctx.beginPath();
+  for(let x=x0;x<=x1;x+=spacing){ if(Math.round(x/spacing)%major===0){const sx=worldToScreen(x,0).x;ctx.moveTo(sx,0);ctx.lineTo(sx,H);} }
+  for(let y=y0;y<=y1;y+=spacing){ if(Math.round(y/spacing)%major===0){const sy=worldToScreen(0,y).y;ctx.moveTo(0,sy);ctx.lineTo(W,sy);} }
+  ctx.stroke();
+  ctx.strokeStyle=C.axis;ctx.lineWidth=1.5;ctx.beginPath();
+  const ox=worldToScreen(0,0).x,oy=worldToScreen(0,0).y;
+  ctx.moveTo(ox,0);ctx.lineTo(ox,H);ctx.moveTo(0,oy);ctx.lineTo(W,oy);ctx.stroke();
+}
+
+function drawEntities(){
+  ctx.save();
+  for(const o of GeoMemory.objects){
+    const sel=selectedIds.has(o.id);
+    if(o.type==='LINE'){
+      const a=worldToScreen(o.x1,o.y1),b=worldToScreen(o.x2,o.y2);
+      if(sel){ctx.shadowColor='rgba(255,170,0,0.5)';ctx.shadowBlur=10;}
+      ctx.strokeStyle=sel?C.entitySel:C.entity; ctx.lineWidth=sel?2.5:1.5;
+      ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+      ctx.shadowBlur=0;
+      drawDot(a.x,a.y,sel?C.entitySel:C.entity,sel?4:3);
+      drawDot(b.x,b.y,sel?C.entitySel:C.entity,sel?4:3);
+    } else if(o.type==='POINT'){
+      const p=worldToScreen(o.x,o.y); drawDot(p.x,p.y,C.point,3);
+    }
+  }
+  ctx.restore();
+}
+
+function drawDot(sx,sy,color,r=3){ ctx.fillStyle=color;ctx.beginPath();ctx.arc(sx,sy,r,0,Math.PI*2);ctx.fill(); }
+
+function drawRubberBand(){
+  if(activeTool!=='line'||!lineState.active) return;
+  const start=worldToScreen(lineState.x1,lineState.y1);
+  const ep=snapActive&&snapPoint?snapPoint:mouseWorld;
+  const end=worldToScreen(ep.x,ep.y);
+  ctx.save();
+  ctx.setLineDash([5,4]);ctx.strokeStyle=C.rubberLine;ctx.lineWidth=1.5;ctx.globalAlpha=0.85;
+  ctx.beginPath();ctx.moveTo(start.x,start.y);ctx.lineTo(end.x,end.y);ctx.stroke();
+  ctx.setLineDash([]);ctx.strokeStyle=C.startPt;ctx.lineWidth=2;ctx.globalAlpha=1;
+  ctx.beginPath();ctx.arc(start.x,start.y,7,0,Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
+
+function drawOffsetPreview(){
+  if(activeTool!=='offset') return; ctx.save();
+  if(offsetState.selectedLine){
+    const ln=offsetState.selectedLine,a=worldToScreen(ln.x1,ln.y1),b=worldToScreen(ln.x2,ln.y2);
+    ctx.strokeStyle='rgba(255,170,0,0.9)';ctx.lineWidth=3;ctx.shadowColor='rgba(255,170,0,0.4)';ctx.shadowBlur=8;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.shadowBlur=0;
+  }
+  if(offsetState.previewPts){
+    const p=offsetState.previewPts,a=worldToScreen(p.x1,p.y1),b=worldToScreen(p.x2,p.y2);
+    ctx.strokeStyle='rgba(0,255,157,0.85)';ctx.lineWidth=2;ctx.shadowColor='rgba(0,255,157,0.35)';ctx.shadowBlur=10;
+    ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+    ctx.setLineDash([]);ctx.shadowBlur=0;
+  }
+  ctx.restore();
+}
+
+function drawPolyPreview(){
+  if(activeTool!=='polygon'||!polyState.active) return;
+  const n=getPolySides(),cx=polyState.cx,cy=polyState.cy;
+  const px=mouseWorld.x,py=mouseWorld.y;
+  const r=Math.hypot(px-cx,py-cy); if(r<1e-6) return;
+  const vr=getPolyInscribed()?r:r/Math.cos(Math.PI/n);
+  const sa=Math.atan2(py-cy,px-cx);
+  ctx.save();ctx.strokeStyle='rgba(0,255,157,0.7)';ctx.setLineDash([5,4]);ctx.lineWidth=1.5;
+  ctx.beginPath();
+  for(let i=0;i<=n;i++){const a=sa+i*(2*Math.PI/n);const sp=worldToScreen(cx+vr*Math.cos(a),cy+vr*Math.sin(a));i===0?ctx.moveTo(sp.x,sp.y):ctx.lineTo(sp.x,sp.y);}
+  ctx.stroke();ctx.setLineDash([]);ctx.restore();
+}
+
+function drawRotatePreview(){
+  if(activeTool!=='rotate') return; ctx.save();
+  const piv=getActivePivot(),sp=worldToScreen(piv.x,piv.y);
+  ctx.strokeStyle=rotateState.draggingPivot?'var(--green)':'rgba(255,170,0,0.9)';
+  ctx.lineWidth=2;ctx.beginPath();ctx.arc(sp.x,sp.y,PIVOT_HANDLE_PX,0,Math.PI*2);ctx.stroke();
+  ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(sp.x-10,sp.y);ctx.lineTo(sp.x+10,sp.y);ctx.moveTo(sp.x,sp.y-10);ctx.lineTo(sp.x,sp.y+10);ctx.stroke();
+  if(rotateState.phase===1){
+    const cur=mouseScreen;
+    const a2m=Math.atan2(-(cur.y-sp.y),cur.x-sp.x)*180/Math.PI;
+    const delta=normaliseAngle(a2m-rotateState.startAngle);
+    rotateState.previewDelta=delta;
+    ctx.strokeStyle='rgba(0,212,255,0.6)';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(sp.x,sp.y);ctx.lineTo(cur.x,cur.y);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='rgba(0,212,255,0.95)';ctx.font='bold 13px JetBrains Mono, monospace';
+    ctx.fillText(delta.toFixed(1)+'°',cur.x+16,cur.y-10);
+    // Ghost
+    ctx.strokeStyle='rgba(0,212,255,0.2)';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+    const rad=delta*Math.PI/180,cos=Math.cos(rad),sin=Math.sin(rad);
+    for(const o of GeoMemory.objects){
+      if(!selectedIds.has(o.id)||o.type!=='LINE') continue;
+      const dx1=o.x1-piv.x,dy1=o.y1-piv.y,dx2=o.x2-piv.x,dy2=o.y2-piv.y;
+      const ga=worldToScreen(piv.x+dx1*cos-dy1*sin,piv.y+dx1*sin+dy1*cos);
+      const gb=worldToScreen(piv.x+dx2*cos-dy2*sin,piv.y+dx2*sin+dy2*cos);
+      ctx.beginPath();ctx.moveTo(ga.x,ga.y);ctx.lineTo(gb.x,gb.y);ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+
+function drawSelBox(){
+  if(!selBox.active) return;
+  const sa=worldToScreen(selBox.startWX,selBox.startWY);
+  const sb=worldToScreen(mouseWorld.x,mouseWorld.y);
+  const lx=Math.min(sa.x,sb.x),ly=Math.min(sa.y,sb.y),w=Math.abs(sb.x-sa.x),h=Math.abs(sb.y-sa.y);
+  const ltr=sb.x>=sa.x;
+  ctx.save();
+  ctx.strokeStyle=ltr?'rgba(0,212,255,0.9)':'rgba(0,255,157,0.9)';
+  ctx.fillStyle=ltr?'rgba(0,212,255,0.06)':'rgba(0,255,157,0.06)';
+  ctx.lineWidth=1.5; if(!ltr) ctx.setLineDash([5,4]);
+  ctx.fillRect(lx,ly,w,h); ctx.strokeRect(lx,ly,w,h);
+  ctx.setLineDash([]); ctx.restore();
+}
+
+// Rect preview CSS overlay
+function updateRectPreview(){
+  if(activeTool==='rect'&&rectState.active){
+    const sa=worldToScreen(rectState.x1,rectState.y1);
+    const sb=worldToScreen(mouseWorld.x,mouseWorld.y);
+    const lx=Math.min(sa.x,sb.x),ly=Math.min(sa.y,sb.y);
+    const rp=document.getElementById('rect-preview');
+    rp.style.display='block';rp.style.left=lx+'px';rp.style.top=ly+'px';
+    rp.style.width=Math.abs(sb.x-sa.x)+'px';rp.style.height=Math.abs(sb.y-sa.y)+'px';
+  } else {
+    document.getElementById('rect-preview').style.display='none';
+  }
+}
+
+// ── DXF IMPORT/EXPORT ────────────────────────────────────
+const DXF_INSUNITS_TO_MM={0:1,1:25.4,2:304.8,4:1,5:10,6:1000};
+const dxfDialog={parsed:null,unitSel:'mm',mergeSel:'merge'};
+
+function selectDlgUnit(u){ dxfDialog.unitSel=u; ['mm','in','auto'].forEach(id=>document.getElementById('dub-'+id).classList.toggle('selected',id===u)); }
+function selectDlgMerge(m){ dxfDialog.mergeSel=m; ['merge','replace'].forEach(id=>document.getElementById('dmb-'+id).classList.toggle('selected',id===m)); }
+function closeDxfModal(){ document.getElementById('dxf-modal').classList.remove('open'); document.getElementById('load-dxf').value=''; dxfDialog.parsed=null; }
+
+function importDXF(event){
+  const file=event.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    let parsed; try{ parsed=parseDXF(e.target.result); }catch(err){ showToast('Parse error: '+err.message); event.target.value=''; return; }
+    if(parsed.error){ showToast('DXF error: '+parsed.error); event.target.value=''; return; }
+    const{lines,circles,arcs}=parsed;
+    const total=lines.length+circles.length*72+arcs.reduce((n,a)=>{let s=a.endA-a.startA;if(s<=0)s+=360;return n+Math.max(1,Math.round(72*s/360));},0);
+    if(!total){ showToast('No geometry found'); event.target.value=''; return; }
+    dxfDialog.parsed=parsed;
+    document.getElementById('dlg-filename').textContent=file.name;
+    document.getElementById('dlg-entity-count').textContent=total+' segs';
+    document.getElementById('dlg-line-count').textContent=lines.length;
+    document.getElementById('dlg-circle-count').textContent=circles.length;
+    document.getElementById('dlg-arc-count').textContent=arcs.length;
+    const insL={0:'0 — Unitless',1:'1 — Inches',4:'4 — Millimeters'};
+    const ru=parsed.rawInsUnits!==undefined?parsed.rawInsUnits:0;
+    const insEl=document.getElementById('dlg-insunits');
+    insEl.textContent=insL[ru]!==undefined?insL[ru]:String(ru);
+    insEl.className=ru===0?'warn':ru===4?'ok':'';
+    selectDlgUnit(ru===1?'auto':ru===0?'in':'auto');
+    selectDlgMerge(GeoMemory.objects.length===0?'replace':'merge');
+    document.getElementById('dxf-modal').classList.add('open');
+  };
+  reader.readAsText(file);
+}
+
+function commitDxfImport(){
+  const{parsed,unitSel,mergeSel}=dxfDialog; if(!parsed) return;
+  let S=unitSel==='auto'?((DXF_INSUNITS_TO_MM[parsed.rawInsUnits]!==undefined?DXF_INSUNITS_TO_MM[parsed.rawInsUnits]:1)):unitSel==='in'?25.4:1;
+  closeDxfModal();
+  if(mergeSel==='replace') GeoMemory.clear();
+  for(const ln of parsed.lines) GeoMemory.addLine(parseFloat((ln.x1*S).toFixed(6)),parseFloat((ln.y1*S).toFixed(6)),parseFloat((ln.x2*S).toFixed(6)),parseFloat((ln.y2*S).toFixed(6)),ln.layer||'Layer_0');
+  for(const c of parsed.circles){ for(const seg of tessellateCircle(c.cx*S,c.cy*S,c.r*S,c.layer)) GeoMemory.addLine(seg.x1,seg.y1,seg.x2,seg.y2,seg.layer); }
+  for(const a of parsed.arcs){ for(const seg of tessellateArc(a.cx*S,a.cy*S,a.r*S,a.startA,a.endA,a.layer)) GeoMemory.addLine(seg.x1,seg.y1,seg.x2,seg.y2,seg.layer); }
+  render(); zoomExtents();
+  showToast(`Imported ${parsed.lines.length+parsed.circles.length+parsed.arcs.length} entities`);
+}
+
+function parseDXF(text){
+  const rawLines=text.split(/\r?\n/),tokens=[];
+  for(let i=0;i+1<rawLines.length;i+=2){const code=parseInt(rawLines[i].trim(),10);const val=rawLines[i+1].trim();if(!isNaN(code))tokens.push([code,val]);}
+  let scaleMM=1,rawInsUnits=0,inHeader=false,nextIsIU=false;
+  for(const[code,val]of tokens){
+    if(code===2&&val==='HEADER'){inHeader=true;continue;}
+    if(code===0&&val==='ENDSEC'){if(inHeader){inHeader=false;break;}}
+    if(!inHeader)continue;
+    if(code===9&&val==='$INSUNITS'){nextIsIU=true;continue;}
+    if(nextIsIU&&code===70){rawInsUnits=parseInt(val,10);scaleMM=(DXF_INSUNITS_TO_MM[rawInsUnits]!==undefined?DXF_INSUNITS_TO_MM[rawInsUnits]:1);nextIsIU=false;}
+  }
+  let entStart=-1;
+  for(let i=0;i<tokens.length;i++){if(tokens[i][0]===2&&tokens[i][1]==='ENTITIES'){entStart=i+1;break;}}
+  if(entStart<0)return{lines:[],circles:[],arcs:[],scaleMM,rawInsUnits,error:'No ENTITIES section'};
+  const lines=[],circles=[],arcs=[]; let i=entStart;
+  while(i<tokens.length){
+    const[code,val]=tokens[i];
+    if(code===0&&val==='ENDSEC')break;if(code===0&&val==='EOF')break;
+    if(code===0&&val==='LINE'){let layer='Layer_0',x1=0,y1=0,x2=0,y2=0;i++;while(i<tokens.length&&tokens[i][0]!==0){const[c,v]=tokens[i];if(c===8)layer=v;if(c===10)x1=parseFloat(v);if(c===20)y1=parseFloat(v);if(c===11)x2=parseFloat(v);if(c===21)y2=parseFloat(v);i++;}lines.push({type:'LINE',layer,x1,y1,x2,y2});continue;}
+    if(code===0&&val==='CIRCLE'){let layer='Layer_0',cx=0,cy=0,r=1;i++;while(i<tokens.length&&tokens[i][0]!==0){const[c,v]=tokens[i];if(c===8)layer=v;if(c===10)cx=parseFloat(v);if(c===20)cy=parseFloat(v);if(c===40)r=parseFloat(v);i++;}circles.push({type:'CIRCLE',layer,cx,cy,r});continue;}
+    if(code===0&&val==='ARC'){let layer='Layer_0',cx=0,cy=0,r=1,startA=0,endA=360;i++;while(i<tokens.length&&tokens[i][0]!==0){const[c,v]=tokens[i];if(c===8)layer=v;if(c===10)cx=parseFloat(v);if(c===20)cy=parseFloat(v);if(c===40)r=parseFloat(v);if(c===50)startA=parseFloat(v);if(c===51)endA=parseFloat(v);i++;}arcs.push({type:'ARC',layer,cx,cy,r,startA,endA});continue;}
+    if(code===0&&val==='LWPOLYLINE'){let layer='Layer_0',closed=false;const verts=[];i++;while(i<tokens.length&&tokens[i][0]!==0){const[c,v]=tokens[i];if(c===8)layer=v;if(c===70)closed=!!(parseInt(v,10)&1);if(c===10)verts.push({x:parseFloat(v),y:0});if(c===20&&verts.length)verts[verts.length-1].y=parseFloat(v);i++;}for(let vi=0;vi<verts.length-1;vi++)lines.push({type:'LINE',layer,x1:verts[vi].x,y1:verts[vi].y,x2:verts[vi+1].x,y2:verts[vi+1].y});if(closed&&verts.length>1){const l=verts[verts.length-1],f=verts[0];lines.push({type:'LINE',layer,x1:l.x,y1:l.y,x2:f.x,y2:f.y});}continue;}
+    i++;
+  }
+  return{lines,circles,arcs,scaleMM,rawInsUnits};
+}
+function tessellateCircle(cx,cy,r,layer,n=72){const s=[];for(let i=0;i<n;i++){const a0=i/n*2*Math.PI,a1=(i+1)/n*2*Math.PI;s.push({type:'LINE',layer,x1:parseFloat((cx+r*Math.cos(a0)).toFixed(6)),y1:parseFloat((cy+r*Math.sin(a0)).toFixed(6)),x2:parseFloat((cx+r*Math.cos(a1)).toFixed(6)),y2:parseFloat((cy+r*Math.sin(a1)).toFixed(6))});}return s;}
+function tessellateArc(cx,cy,r,startDeg,endDeg,layer,n=72){let sR=startDeg*Math.PI/180,eR=endDeg*Math.PI/180;if(eR<=sR)eR+=2*Math.PI;const span=eR-sR,cnt=Math.max(1,Math.round(n*span/(2*Math.PI))),s=[];for(let i=0;i<cnt;i++){const a0=sR+i/cnt*span,a1=sR+(i+1)/cnt*span;s.push({type:'LINE',layer,x1:parseFloat((cx+r*Math.cos(a0)).toFixed(6)),y1:parseFloat((cy+r*Math.sin(a0)).toFixed(6)),x2:parseFloat((cx+r*Math.cos(a1)).toFixed(6)),y2:parseFloat((cy+r*Math.sin(a1)).toFixed(6))});}return s;}
+
+function buildDXF(objects){
+  const f=n=>n.toFixed(4);
+  const l=[];
+  l.push('0','SECTION','2','HEADER','9','$ACADVER','1','AC1009','9','$INSUNITS','70','4','0','ENDSEC');
+  l.push('0','SECTION','2','TABLES','0','TABLE','2','LAYER','70','1','0','LAYER','2','Layer_0','70','0','62','7','6','CONTINUOUS','0','ENDTAB','0','ENDSEC');
+  l.push('0','SECTION','2','ENTITIES');
+  for(const o of objects){
+    if(o.type==='LINE') l.push('0','LINE','8',o.layer||'Layer_0','10',f(o.x1),'20',f(o.y1),'30','0.0000','11',f(o.x2),'21',f(o.y2),'31','0.0000');
+  }
+  l.push('0','ENDSEC','0','EOF');
+  return l.join('\n');
+}
+
+// ── FILE I/O ─────────────────────────────────────────────
+function saveKAD(){ downloadText(GeoMemory.serialize(),'drawing.kad','application/json'); showToast('Saved drawing.kad'); }
+function loadKAD(event){const file=event.target.files[0];if(!file)return;const r=new FileReader();r.onload=e=>{const ok=GeoMemory.deserialize(e.target.result);if(ok){render();showToast('Loaded '+file.name);}else showToast('Invalid .kad');event.target.value='';};r.readAsText(file);}
+function exportDXF(){const o=GeoMemory.objects;if(!o.length){showToast('No geometry');return;}downloadText(buildDXF(o),'drawing.dxf','text/plain');showToast('Exported '+o.length+' entities');}
+function downloadText(content,filename,mime){const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([content],{type:mime})),download:filename});document.body.appendChild(a);a.click();document.body.removeChild(a);}
+
+// ── PROPS ────────────────────────────────────────────────
+function updateProps(){
+  const lines=GeoMemory.objects.filter(o=>o.type==='LINE').length;
+  document.getElementById('prop-objects').textContent=GeoMemory.objects.length;
+  document.getElementById('prop-lines').textContent=lines;
+}
+
+let toastT;
+function showToast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+// ── KEYBOARD (for paired keyboards / desktop) ────────────
+window.addEventListener('keydown',e=>{
+  if(document.activeElement.tagName==='INPUT') return;
+  const k=e.key;
+  if(k==='Escape'){ cancelTool(); selectedIds.clear(); updateSelectionProps(); render(); return; }
+  if(k==='Delete'||k==='Backspace'){ deleteSelected(); return; }
+  if(!e.ctrlKey&&!e.metaKey){
+    if(k==='l'||k==='L') setTool('line');
+    if(k==='r'||k==='R') setTool('rect');
+    if(k==='p'||k==='P') setTool('polygon');
+    if(k==='s'||k==='S') setTool('select');
+    if(k==='o'||k==='O') setTool('offset');
+    if(k==='t'||k==='T') setTool('rotate');
+    if(k==='q'||k==='Q') rotateSelected(-90);
+    if(k==='e'||k==='E') rotateSelected(90);
+    if(k==='z'||k==='Z') zoomExtents();
+    if(k==='g'||k==='G') toggleGrid();
+    if(k==='u'||k==='U') toggleUnits();
+  }
+  if(e.ctrlKey&&k==='s'){ e.preventDefault(); saveKAD(); }
+});
+
+// ── INIT ─────────────────────────────────────────────────
+resizeCanvas();
+initCamera();
+setTool('select');
+initSplash();
+
+// Demo geometry
+setTimeout(()=>{
+  GeoMemory.addLine(-15,0,15,0);
+  GeoMemory.addLine(0,-15,0,15);
+  render();
+  showToast('Swipe left edge for menu · Long-press for actions');
+},300);
+</script>
+</body>
+</html>
