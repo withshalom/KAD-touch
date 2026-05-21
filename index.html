@@ -36,10 +36,31 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width:100%; height:100%; overflow:hidden; background:var(--bg-void); color:var(--text-primary); font-family:var(--font-ui); font-size:13px; }
+html {
+  width: 100%; height: 100%;
+  /* iOS Safari: 100vh includes the address bar, causing overflow and scroll */
+  height: -webkit-fill-available;
+  overflow: hidden;
+}
+body {
+  width: 100%; height: 100%;
+  height: -webkit-fill-available;
+  overflow: hidden;
+  background: var(--bg-void); color: var(--text-primary);
+  font-family: var(--font-ui); font-size: 13px;
+  position: fixed; /* prevents rubber-band scroll on iOS */
+  top: 0; left: 0; right: 0; bottom: 0;
+}
 
 /* ── LAYOUT ── */
-#app { display:grid; grid-template-columns:var(--sidebar-w) 1fr; grid-template-rows:var(--toolbar-h) 1fr var(--status-h); width:100vw; height:100vh; }
+#app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--toolbar-h) 1fr var(--status-h);
+  width: 100%;
+  height: 100%;
+  /* Do NOT use 100vh here — use 100% of body which is already clamped */
+}
 
 /* ── TOPBAR ── */
 #topbar { grid-column:1/-1; display:flex; align-items:center; background:var(--bg-panel); border-bottom:1px solid var(--border); padding:0 12px; position:relative; z-index:30; }
@@ -494,6 +515,7 @@ html, body { width:100%; height:100%; overflow:hidden; background:var(--bg-void)
 @media (max-width: 768px) {
   #app {
     grid-template-columns: 0 1fr;
+    grid-template-rows: var(--toolbar-h) 1fr var(--status-h);
   }
   #sidebar {
     position: fixed;
@@ -926,11 +948,17 @@ const ctx    = canvas.getContext('2d');
 const wrap   = document.getElementById('canvas-wrap');
 
 function resizeCanvas() {
-  canvas.width  = wrap.clientWidth;
-  canvas.height = wrap.clientHeight;
+  // Use wrap dimensions but fall back to window.innerWidth/Height
+  // wrap.clientWidth/Height can be 0 on iOS if the grid hasn't resolved yet
+  const w = wrap.clientWidth  || (window.innerWidth  - (window.innerWidth > 768 ? 228 : 0));
+  const h = wrap.clientHeight || (window.innerHeight - 40 - 28); // minus toolbar and statusbar
+  canvas.width  = Math.max(w, 100);
+  canvas.height = Math.max(h, 100);
   render();
 }
 window.addEventListener('resize', resizeCanvas);
+// iOS fires resize when address bar shows/hides — also handle orientationchange
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 200));
 
 // ── CAMERA ──────────────────────────────────────────────
 const cam = { panX:0, panY:0, zoom:3.0, minZoom:0.05, maxZoom:200 };
@@ -3340,19 +3368,22 @@ function showToast(msg) {
 }
 
 // ── INIT ────────────────────────────────────────────────
-resizeCanvas();
-initCamera();
-setTool('select');
-canvas.focus();
-document.getElementById('cc-year').textContent = new Date().getFullYear();
-initSplash();
+// Wrap in rAF so iOS Safari finishes layout before we measure the canvas
+requestAnimationFrame(() => {
+  resizeCanvas();
+  initCamera();
+  setTool('select');
+  canvas.focus();
+  document.getElementById('cc-year').textContent = new Date().getFullYear();
+  initSplash();
 
-setTimeout(()=>{
-  GeoMemory.addLine(-15,0,15,0);
-  GeoMemory.addLine(0,-15,0,15);
-  render();
-  showToast('Demo loaded · Tap toolbar to draw · Pinch to zoom · Long-press for menu');
-}, 250);
+  setTimeout(()=>{
+    GeoMemory.addLine(-15,0,15,0);
+    GeoMemory.addLine(0,-15,0,15);
+    render();
+    showToast('Tap a tool below · Pinch to zoom · Long-press for menu');
+  }, 300);
+});
 </script>
 </body>
 </html>
