@@ -2,12 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#080a0e">
-<title>.KAD TOUCH — Kernel-Aided Design</title>
+<title>.KAD TOUCH</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600&display=swap');
 
@@ -36,31 +34,10 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html {
-  width: 100%; height: 100%;
-  /* iOS Safari: 100vh includes the address bar, causing overflow and scroll */
-  height: -webkit-fill-available;
-  overflow: hidden;
-}
-body {
-  width: 100%; height: 100%;
-  height: -webkit-fill-available;
-  overflow: hidden;
-  background: var(--bg-void); color: var(--text-primary);
-  font-family: var(--font-ui); font-size: 13px;
-  position: fixed; /* prevents rubber-band scroll on iOS */
-  top: 0; left: 0; right: 0; bottom: 0;
-}
+html, body { width:100%; height:100%; overflow:hidden; background:var(--bg-void); color:var(--text-primary); font-family:var(--font-ui); font-size:13px; }
 
 /* ── LAYOUT ── */
-#app {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
-  grid-template-rows: var(--toolbar-h) 1fr var(--status-h);
-  width: 100%;
-  height: 100%;
-  /* Do NOT use 100vh here — use 100% of body which is already clamped */
-}
+#app { display:grid; grid-template-columns:var(--sidebar-w) 1fr; grid-template-rows:var(--toolbar-h) 1fr var(--status-h); width:100vw; height:100vh; }
 
 /* ── TOPBAR ── */
 #topbar { grid-column:1/-1; display:flex; align-items:center; background:var(--bg-panel); border-bottom:1px solid var(--border); padding:0 12px; position:relative; z-index:30; }
@@ -483,63 +460,40 @@ body {
 .op-hint b { color: var(--text-secondary); }
 .op-actions { display: flex; gap: 6px; }
 .op-actions .dlg-btn { flex: 1; padding: 6px 8px; font-size: 9px; }
-/* ── TOUCH / MOBILE ADDITIONS ── */
-/* Canvas: prevent browser from hijacking touch gestures */
+/* ── TOUCH ADDITIONS — layout unchanged from desktop ── */
 #main-canvas { touch-action: none; }
-#canvas-wrap { touch-action: none; }
+#canvas-wrap  { touch-action: none; }
 
-/* Hamburger button — hidden on desktop, shown on touch/narrow */
+/* Hamburger button — hidden on wide screens */
 #sidebar-toggle {
   display: none;
   align-items: center; justify-content: center;
   width: 36px; height: 36px;
   background: none; border: 1px solid var(--border);
   border-radius: 4px; cursor: pointer;
-  color: var(--text-secondary); margin-right: 8px;
-  flex-shrink: 0;
+  color: var(--text-secondary); margin-right: 8px; flex-shrink: 0;
 }
-#sidebar-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
 #sidebar-toggle svg { width: 16px; height: 16px; }
+#sidebar-toggle:hover { background: var(--bg-hover); }
 
-/* Sidebar overlay (tap-outside to close on touch) */
+/* Tap-outside overlay for sidebar on mobile */
 #sidebar-overlay {
-  display: none;
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.5);
-  z-index: 9;
-  backdrop-filter: blur(2px);
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5); z-index: 9;
 }
-#sidebar-overlay.visible { display: block; }
+#sidebar-overlay.open { display: block; }
 
-/* On narrow screens: sidebar slides off-canvas, hamburger appears */
-@media (max-width: 768px) {
-  #app {
-    grid-template-columns: 0 1fr;
-    grid-template-rows: var(--toolbar-h) 1fr var(--status-h);
-  }
+/* On phones: collapse sidebar, show hamburger */
+@media (max-width: 700px) {
+  #app { grid-template-columns: 0 1fr; }
   #sidebar {
-    position: fixed;
-    top: 0; left: 0; bottom: 0;
-    width: 228px;
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: 228px; z-index: 10;
     transform: translateX(-100%);
-    transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
-    z-index: 10;
-    overflow-y: auto;
+    transition: transform 0.25s ease;
   }
-  #sidebar.open {
-    transform: translateX(0);
-    box-shadow: 4px 0 24px rgba(0,0,0,0.6);
-  }
+  #sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,0.7); }
   #sidebar-toggle { display: flex; }
-  #sidebar-overlay.visible { display: block; }
-}
-
-/* Larger touch targets for tool buttons on touch screens */
-@media (pointer: coarse) {
-  .tool-btn { padding: 10px 4px; min-height: 52px; }
-  .tb-menu-item { padding: 0 10px; min-height: 40px; }
-  .tb-dd-item { padding: 10px 14px; }
-  .ctx-item { padding: 11px 14px; }
 }
 </style>
 </head>
@@ -548,13 +502,8 @@ body {
 
 <!-- TOPBAR -->
 <div id="topbar">
-  <!-- Hamburger: only visible on touch/narrow -->
-  <button id="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <line x1="3" y1="6" x2="21" y2="6"/>
-      <line x1="3" y1="12" x2="21" y2="12"/>
-      <line x1="3" y1="18" x2="21" y2="18"/>
-    </svg>
+  <button id="sidebar-toggle" onclick="toggleSidebar()" aria-label="Menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
   </button>
   <div class="brand"><div class="brand-dot"></div><span>.KAD</span><div class="brand-sub">Kernel-Aided Design</div></div>
   <div class="tb-sep"></div>
@@ -909,7 +858,7 @@ body {
       </div>
       <div class="splash-note">
         This preference is saved locally and won't appear again.<br>
-        CC BY-SA 4.0 · © <span id="splash-year"></span> · .KAD TOUCH — Kernel-Aided Design
+        CC BY-SA 4.0 · © <span id="splash-year"></span> · .KAD TOUCH
       </div>
     </div>
   </div>
@@ -948,17 +897,11 @@ const ctx    = canvas.getContext('2d');
 const wrap   = document.getElementById('canvas-wrap');
 
 function resizeCanvas() {
-  // Use wrap dimensions but fall back to window.innerWidth/Height
-  // wrap.clientWidth/Height can be 0 on iOS if the grid hasn't resolved yet
-  const w = wrap.clientWidth  || (window.innerWidth  - (window.innerWidth > 768 ? 228 : 0));
-  const h = wrap.clientHeight || (window.innerHeight - 40 - 28); // minus toolbar and statusbar
-  canvas.width  = Math.max(w, 100);
-  canvas.height = Math.max(h, 100);
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
   render();
 }
 window.addEventListener('resize', resizeCanvas);
-// iOS fires resize when address bar shows/hides — also handle orientationchange
-window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 200));
 
 // ── CAMERA ──────────────────────────────────────────────
 const cam = { panX:0, panY:0, zoom:3.0, minZoom:0.05, maxZoom:200 };
@@ -2374,248 +2317,234 @@ function onWheel(e) {
   updateGridLabel(); render();
 }
 
-// ── SIDEBAR TOGGLE (touch/mobile) ───────────────────────
+// ── SIDEBAR TOGGLE ───────────────────────────────────────
 function toggleSidebar() {
   const sb = document.getElementById('sidebar');
   const ov = document.getElementById('sidebar-overlay');
-  const isOpen = sb.classList.contains('open');
-  if(isOpen) { sb.classList.remove('open'); ov.classList.remove('visible'); }
-  else        { sb.classList.add('open');    ov.classList.add('visible'); }
+  const open = sb.classList.toggle('open');
+  ov.classList.toggle('open', open);
 }
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebar-overlay').classList.remove('visible');
+  document.getElementById('sidebar-overlay').classList.remove('open');
 }
 
 // ── TOUCH EVENT SYSTEM ───────────────────────────────────
-// Strategy: translate touch gestures into the existing mouse event
-// functions (onMouseDown, onMouseMove, onMouseUp) so all tool logic
-// stays unchanged. Handle gestures that have no mouse equivalent
-// (pinch-zoom, long-press, two-touch selection box) separately.
+// Translates touch gestures into calls to the existing mouse handlers.
+// No tool logic lives here — that stays in onMouseDown/Move/Up unchanged.
 //
-// Gesture map:
-//   1 finger tap/drag          → mousedown + mousemove + mouseup
-//   2 fingers simultaneous     → pinch-zoom + pan (replaces wheel + middle-drag)
-//   Long press (1 finger held) → context menu (right-click)
-//   1 finger held + 2nd tap    → selection box (two-corner gesture)
+//  1 finger            → mousedown + mousemove + mouseup (all tools)
+//  2 fingers together  → pinch-zoom + pan
+//  Long press 480ms    → context menu (right-click equivalent)
+//  Hold + second tap   → selection box (two-corner gesture)
 
-const TOUCH_LONG_MS   = 480;   // ms before long-press fires
-const TOUCH_MOVE_TOL  = 8;     // px movement that cancels long-press
-const TOUCH_SNAP_PX   = 28;    // larger snap radius for finger imprecision
+const T_LONG_MS  = 480;
+const T_MOVE_TOL = 8;    // px movement that cancels long-press
+const T_SNAP_PX  = 28;   // larger snap radius for fingertip
 
-let touchLongTimer    = null;
-let touchLongFired    = false;
-let touchStartClientX = 0;
-let touchStartClientY = 0;
+let tLongTimer = null;
+let tLongFired = false;
+let tStartX = 0, tStartY = 0;
 
-// Pinch state
-let pinchActive    = false;
-let pinchStartDist = 0;
-let pinchStartZoom = 0;
-let pinchStartPanX = 0;
-let pinchStartPanY = 0;
-let pinchMidX      = 0;
-let pinchMidY      = 0;
+// Pinch
+let tPinch = false;
+let tPinchDist = 0, tPinchZoom = 0;
+let tPinchPanX = 0, tPinchPanY = 0;
+let tPinchMidX = 0, tPinchMidY = 0;
 
-// Two-touch selection box: hold one finger, tap second
-// selBoxGesture.phase: 0=idle, 2=box active (second finger placed)
-let tbsg = { phase:0, anchorX:0, anchorY:0, anchorWX:0, anchorWY:0 };
+// Two-touch selection box
+let tSelBox = { phase:0, ax:0, ay:0, awx:0, awy:0 };
 
-function makeFakeMouseEvent(type, clientX, clientY, button=0) {
-  return { type, clientX, clientY, button,
+function tPos(touch) {
+  const r = canvas.getBoundingClientRect();
+  return { x: touch.clientX - r.left, y: touch.clientY - r.top };
+}
+
+// Synthesise a minimal mouse-event-like object
+function tMouse(clientX, clientY, button) {
+  return { clientX, clientY, button: button||0,
            shiftKey:false, preventDefault:()=>{}, stopPropagation:()=>{} };
 }
 
-canvas.addEventListener('touchstart', (e)=>{
+// Touch-aware snap with larger radius
+function tSnap(wx, wy) {
+  if(!snapEnabled) return null;
+  const pts = GeoMemory.allEndpoints();
+  for(const p of lineChain) pts.push(p);
+  let best=null, bestD=Infinity;
+  const test = worldToScreen(wx, wy);
+  for(const p of pts){
+    const sp = worldToScreen(p.x, p.y);
+    const d  = Math.hypot(sp.x-test.x, sp.y-test.y);
+    if(d < T_SNAP_PX && d < bestD){ bestD=d; best=p; }
+  }
+  return best;
+}
+
+canvas.addEventListener('touchstart', e => {
   e.preventDefault();
   closeCtxMenu();
-  touchLongFired = false;
+  tLongFired = false;
 
+  // ── TWO FINGERS ──────────────────────────────────────
   if(e.touches.length === 2) {
-    // Cancel long-press, start pinch or sel-box
-    clearTimeout(touchLongTimer);
+    clearTimeout(tLongTimer);
 
-    if(tbsg.phase === 1) {
-      // Second finger while first is held — start sel-box
-      tbsg.phase = 2;
-      pinchActive = false;
-      // Identify which touch is the anchor and which is the corner
-      const t0 = e.touches[0], t1 = e.touches[1];
+    // If first finger was held — start selection box
+    if(tSelBox.phase === 1) {
+      tSelBox.phase = 2;
+      tPinch = false;
       const r = canvas.getBoundingClientRect();
-      const s0 = {x:t0.clientX-r.left, y:t0.clientY-r.top};
-      const s1 = {x:t1.clientX-r.left, y:t1.clientY-r.top};
-      const d0 = Math.hypot(s0.x-tbsg.anchorX, s0.y-tbsg.anchorY);
-      const d1 = Math.hypot(s1.x-tbsg.anchorX, s1.y-tbsg.anchorY);
-      const corner = d0 > d1 ? s0 : s1;
-      // Initialise selBox with anchor already set in tbsg
-      selBox.active  = true;
-      selBox.startSX = tbsg.anchorX; selBox.startSY = tbsg.anchorY;
-      selBox.startWX = tbsg.anchorWX; selBox.startWY = tbsg.anchorWY;
-      // Update mouseScreen/mouseWorld to the corner position
-      const raw = screenToWorld(corner.x, corner.y);
-      const snap = findSnapTouch(raw.x, raw.y);
+      const t0 = { x:e.touches[0].clientX-r.left, y:e.touches[0].clientY-r.top };
+      const t1 = { x:e.touches[1].clientX-r.left, y:e.touches[1].clientY-r.top };
+      const d0 = Math.hypot(t0.x-tSelBox.ax, t0.y-tSelBox.ay);
+      const d1 = Math.hypot(t1.x-tSelBox.ax, t1.y-tSelBox.ay);
+      const corner = d0 > d1 ? t0 : t1;
+      const raw  = screenToWorld(corner.x, corner.y);
+      const snap = tSnap(raw.x, raw.y);
       mouseScreen = corner;
       mouseWorld  = snap || raw;
-      render();
-      return;
+      snapActive = !!snap; snapPoint = snap;
+      selBox.active  = true;
+      selBox.startSX = tSelBox.ax; selBox.startSY = tSelBox.ay;
+      selBox.startWX = tSelBox.awx; selBox.startWY = tSelBox.awy;
+      render(); return;
     }
 
-    // Normal pinch
-    tbsg.phase = 0;
+    // Normal pinch-zoom + pan
+    tSelBox.phase = 0;
     selBox.active = false; selBox.pending = false;
-    pinchActive = true;
-    const t0 = e.touches[0], t1 = e.touches[1];
-    pinchStartDist = Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY);
-    pinchStartZoom = cam.zoom;
-    pinchStartPanX = cam.panX;
-    pinchStartPanY = cam.panY;
-    pinchMidX = (t0.clientX+t1.clientX)/2;
-    pinchMidY = (t0.clientY+t1.clientY)/2;
+    tPinch = true;
+    tPinchDist = Math.hypot(e.touches[1].clientX-e.touches[0].clientX, e.touches[1].clientY-e.touches[0].clientY);
+    tPinchZoom = cam.zoom;
+    tPinchPanX = cam.panX; tPinchPanY = cam.panY;
+    tPinchMidX = (e.touches[0].clientX+e.touches[1].clientX)/2;
+    tPinchMidY = (e.touches[0].clientY+e.touches[1].clientY)/2;
     return;
   }
 
-  // Single finger
-  pinchActive = false;
+  // ── ONE FINGER ───────────────────────────────────────
+  tPinch = false;
   const t = e.touches[0];
-  touchStartClientX = t.clientX;
-  touchStartClientY = t.clientY;
+  tStartX = t.clientX; tStartY = t.clientY;
 
-  // Set snap radius larger for touch
-  const savedSnap = SNAP_PX;
-
-  // Long-press timer
-  touchLongTimer = setTimeout(()=>{
-    touchLongFired = true;
-    tbsg.phase = 0;
+  // Long-press → context menu
+  tLongTimer = setTimeout(() => {
+    tLongFired = true;
+    tSelBox.phase = 0;
     if(navigator.vibrate) navigator.vibrate(40);
     openCtxMenu(t.clientX, t.clientY);
-  }, TOUCH_LONG_MS);
+  }, T_LONG_MS);
 
-  // Begin sel-box phase 1 when in select/rotate
+  // Prime selection-box phase 1
   if(activeTool==='select' || (activeTool==='rotate' && selectedIds.size===0)) {
-    const r = canvas.getBoundingClientRect();
-    const sx = t.clientX-r.left, sy = t.clientY-r.top;
-    tbsg.phase   = 1;
-    tbsg.anchorX = sx; tbsg.anchorY = sy;
-    const raw = screenToWorld(sx, sy);
-    const snap = findSnapTouch(raw.x, raw.y);
-    tbsg.anchorWX = snap ? snap.x : raw.x;
-    tbsg.anchorWY = snap ? snap.y : raw.y;
+    const pos = tPos(t);
+    const raw = screenToWorld(pos.x, pos.y);
+    const snap = tSnap(raw.x, raw.y);
+    tSelBox.phase = 1;
+    tSelBox.ax = pos.x; tSelBox.ay = pos.y;
+    tSelBox.awx = snap ? snap.x : raw.x;
+    tSelBox.awy = snap ? snap.y : raw.y;
   }
 
-  // Fire mousedown
-  onMouseDown(makeFakeMouseEvent('mousedown', t.clientX, t.clientY, 0));
+  // Forward as mousedown
+  onMouseDown(tMouse(t.clientX, t.clientY, 0));
 
 }, {passive:false});
 
-canvas.addEventListener('touchmove', (e)=>{
+canvas.addEventListener('touchmove', e => {
   e.preventDefault();
 
-  if(e.touches.length === 2 && pinchActive) {
+  // ── PINCH MOVE ───────────────────────────────────────
+  if(e.touches.length === 2 && tPinch) {
     const t0 = e.touches[0], t1 = e.touches[1];
     const dist = Math.hypot(t1.clientX-t0.clientX, t1.clientY-t0.clientY);
-    const mx = (t0.clientX+t1.clientX)/2;
-    const my = (t0.clientY+t1.clientY)/2;
-    const scale = dist / pinchStartDist;
-    const nz = Math.max(cam.minZoom, Math.min(cam.maxZoom, pinchStartZoom*scale));
-    const panDX = mx - pinchMidX, panDY = my - pinchMidY;
+    const mx   = (t0.clientX+t1.clientX)/2;
+    const my   = (t0.clientY+t1.clientY)/2;
+    const nz   = Math.max(cam.minZoom, Math.min(cam.maxZoom, tPinchZoom*(dist/tPinchDist)));
+    const pdx  = mx - tPinchMidX, pdy = my - tPinchMidY;
     cam.zoom = nz;
-    cam.panX = pinchMidX - (pinchMidX-pinchStartPanX)*(nz/pinchStartZoom) + panDX;
-    cam.panY = pinchMidY - (pinchMidY-pinchStartPanY)*(nz/pinchStartZoom) + panDY;
+    cam.panX = tPinchMidX - (tPinchMidX-tPinchPanX)*(nz/tPinchZoom) + pdx;
+    cam.panY = tPinchMidY - (tPinchMidY-tPinchPanY)*(nz/tPinchZoom) + pdy;
     document.getElementById('prop-zoom').textContent = cam.zoom.toFixed(2)+'×';
     updateGridLabel(); render(); return;
   }
 
-  if(e.touches.length === 2 && tbsg.phase === 2) {
-    // Sel-box: move the corner finger
+  // ── SEL-BOX CORNER DRAG ──────────────────────────────
+  if(e.touches.length === 2 && tSelBox.phase === 2) {
     const r = canvas.getBoundingClientRect();
-    const t0 = e.touches[0], t1 = e.touches[1];
-    const s0 = {x:t0.clientX-r.left, y:t0.clientY-r.top};
-    const s1 = {x:t1.clientX-r.left, y:t1.clientY-r.top};
-    const d0 = Math.hypot(s0.x-tbsg.anchorX, s0.y-tbsg.anchorY);
-    const d1 = Math.hypot(s1.x-tbsg.anchorX, s1.y-tbsg.anchorY);
-    const corner = d0 > d1 ? s0 : s1;
-    const raw = screenToWorld(corner.x, corner.y);
-    const snap = findSnapTouch(raw.x, raw.y);
+    const t0 = { x:e.touches[0].clientX-r.left, y:e.touches[0].clientY-r.top };
+    const t1 = { x:e.touches[1].clientX-r.left, y:e.touches[1].clientY-r.top };
+    const d0 = Math.hypot(t0.x-tSelBox.ax, t0.y-tSelBox.ay);
+    const d1 = Math.hypot(t1.x-tSelBox.ax, t1.y-tSelBox.ay);
+    const corner = d0 > d1 ? t0 : t1;
+    const raw  = screenToWorld(corner.x, corner.y);
+    const snap = tSnap(raw.x, raw.y);
     mouseScreen = corner;
     mouseWorld  = snap || raw;
     snapActive = !!snap; snapPoint = snap;
     render(); return;
   }
 
+  // ── SINGLE FINGER MOVE ───────────────────────────────
   if(e.touches.length === 1) {
     const t = e.touches[0];
-    const moved = Math.hypot(t.clientX-touchStartClientX, t.clientY-touchStartClientY);
-    if(moved > TOUCH_MOVE_TOL) {
-      clearTimeout(touchLongTimer);
-      if(tbsg.phase === 1) tbsg.phase = 0; // dragged before 2nd touch — cancel sel-box phase
+    const moved = Math.hypot(t.clientX-tStartX, t.clientY-tStartY);
+    if(moved > T_MOVE_TOL) {
+      clearTimeout(tLongTimer);
+      if(tSelBox.phase === 1) tSelBox.phase = 0;
     }
-    onMouseMove(makeFakeMouseEvent('mousemove', t.clientX, t.clientY));
+    onMouseMove(tMouse(t.clientX, t.clientY));
   }
 
 }, {passive:false});
 
-canvas.addEventListener('touchend', (e)=>{
+canvas.addEventListener('touchend', e => {
   e.preventDefault();
-  clearTimeout(touchLongTimer);
-
-  if(touchLongFired) { touchLongFired=false; return; }
+  clearTimeout(tLongTimer);
+  if(tLongFired) { tLongFired=false; return; }
 
   // Pinch ended
-  if(pinchActive && e.touches.length < 2) { pinchActive=false; return; }
+  if(tPinch && e.touches.length < 2) { tPinch=false; return; }
 
-  // Sel-box commit: second finger lifted
-  if(tbsg.phase === 2 && e.touches.length <= 1) {
-    tbsg.phase = 0;
+  // ── SEL-BOX COMMIT ───────────────────────────────────
+  if(tSelBox.phase === 2 && e.touches.length <= 1) {
+    tSelBox.phase = 0;
     selBox.active = false;
     const wx0=selBox.startWX, wy0=selBox.startWY;
     const wx1=mouseWorld.x,   wy1=mouseWorld.y;
     const lx=Math.min(wx0,wx1), rx=Math.max(wx0,wx1);
     const by=Math.min(wy0,wy1), ty=Math.max(wy0,wy1);
-    const leftToRight = mouseScreen.x >= selBox.startSX;
+    const ltr = mouseScreen.x >= selBox.startSX;
     selectedIds.clear();
     for(const o of GeoMemory.objects){
-      const hit = leftToRight ? selBoxWindow(o,lx,rx,by,ty) : selBoxCrossing(o,lx,rx,by,ty);
-      if(hit) selectedIds.add(o.id);
+      if(ltr ? selBoxWindow(o,lx,rx,by,ty) : selBoxCrossing(o,lx,rx,by,ty))
+        selectedIds.add(o.id);
     }
     const n=selectedIds.size;
-    if(n>0) showToast(`${leftToRight?'Window':'Crossing'}: ${n} object${n>1?'s':''}`);
+    if(n>0) showToast(`${ltr?'Window':'Crossing'}: ${n} object${n>1?'s':''}`);
     updateSelectionProps(); render(); return;
   }
 
-  tbsg.phase = 0;
+  tSelBox.phase = 0;
 
-  if(e.touches.length === 0 && e.changedTouches.length > 0) {
+  // Forward as mouseup
+  if(e.changedTouches.length > 0) {
     const t = e.changedTouches[0];
-    // Fake mouseup to trigger tool actions
-    onMouseUp(makeFakeMouseEvent('mouseup', t.clientX, t.clientY, 0));
+    onMouseUp(tMouse(t.clientX, t.clientY, 0));
   }
 
 }, {passive:false});
 
-canvas.addEventListener('touchcancel', (e)=>{
-  clearTimeout(touchLongTimer);
-  touchLongFired = false;
-  pinchActive = false;
-  tbsg.phase  = 0;
-  selBox.active = false; selBox.pending = false;
-  if(isPanning) { isPanning=false; updateCursor(); }
+canvas.addEventListener('touchcancel', () => {
+  clearTimeout(tLongTimer);
+  tLongFired=false; tPinch=false; tSelBox.phase=0;
+  selBox.active=false; selBox.pending=false;
+  if(isPanning){ isPanning=false; updateCursor(); }
 }, {passive:false});
 
-// Touch-aware snap: uses larger radius for finger imprecision
-function findSnapTouch(wx, wy) {
-  if(!snapEnabled) return null;
-  const pts = GeoMemory.allEndpoints();
-  for(const p of lineChain) pts.push({x:p.x, y:p.y});
-  let best=null, bestD=Infinity;
-  const test = worldToScreen(wx,wy);
-  for(const p of pts){
-    const sp = worldToScreen(p.x,p.y);
-    const d  = Math.hypot(sp.x-test.x, sp.y-test.y);
-    if(d < TOUCH_SNAP_PX && d < bestD){ bestD=d; best=p; }
-  }
-  return best;
-}
+// ── KEYBOARD ────────────────────────────────────────────
+window.addEventListener('keydown', onKeyDown);
 
 function onKeyDown(e) {
   if(document.activeElement===dynField) return;
@@ -3368,22 +3297,19 @@ function showToast(msg) {
 }
 
 // ── INIT ────────────────────────────────────────────────
-// Wrap in rAF so iOS Safari finishes layout before we measure the canvas
-requestAnimationFrame(() => {
-  resizeCanvas();
-  initCamera();
-  setTool('select');
-  canvas.focus();
-  document.getElementById('cc-year').textContent = new Date().getFullYear();
-  initSplash();
+resizeCanvas();
+initCamera();
+setTool('select');
+canvas.focus();
+document.getElementById('cc-year').textContent = new Date().getFullYear();
+initSplash();
 
-  setTimeout(()=>{
-    GeoMemory.addLine(-15,0,15,0);
-    GeoMemory.addLine(0,-15,0,15);
-    render();
-    showToast('Tap a tool below · Pinch to zoom · Long-press for menu');
-  }, 300);
-});
+setTimeout(()=>{
+  GeoMemory.addLine(-15,0,15,0);
+  GeoMemory.addLine(0,-15,0,15);
+  render();
+  showToast('Tap a tool to draw · Pinch to zoom · Long-press for menu');
+}, 250);
 </script>
 </body>
 </html>
